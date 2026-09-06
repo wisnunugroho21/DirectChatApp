@@ -10,6 +10,7 @@ import 'package:cross_file/cross_file.dart';
 import 'package:just_audio/just_audio.dart';
 import 'api.dart';
 import 'app_theme.dart';
+import 'ui_components.dart';
 import 'chat_store.dart';
 import 'call_service.dart';
 import 'push_service.dart';
@@ -72,8 +73,7 @@ class _ConnectAppState extends State<ConnectApp> {
     title: 'TMS Connect',
     debugShowCheckedModeBanner: false,
     theme: buildAppTheme(Brightness.light),
-    darkTheme: buildAppTheme(Brightness.dark),
-    themeMode: ThemeMode.system,
+    themeMode: ThemeMode.light,
     home: starting
         ? const Scaffold(body: Center(child: CircularProgressIndicator()))
         : user == null
@@ -164,124 +164,225 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
-  Widget field(String key, String label, {bool optional = false}) => Padding(
-    padding: const EdgeInsets.only(bottom: 14),
-    child: TextFormField(
-      controller: fields[key],
-      decoration: InputDecoration(labelText: label),
-      obscureText: key.toLowerCase().contains('password'),
-      enabled: !busy,
-      keyboardType: key == 'email'
-          ? TextInputType.emailAddress
-          : key == 'employeeId'
-          ? TextInputType.number
-          : TextInputType.text,
-      onFieldSubmitted: (_) {
-        if (!busy) unawaited(submit());
-      },
-      validator: (value) {
-        if (!optional && (value == null || value.trim().isEmpty)) {
-          return 'Required';
-        }
-        if (key == 'email' &&
-            !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value ?? '')) {
-          return 'Enter a valid email';
-        }
-        if (key == 'employeeId' &&
-            value!.isNotEmpty &&
-            int.tryParse(value) == null) {
-          return 'Enter a whole number';
-        }
-        if (register && key == 'password' && value!.length < 6) {
-          return 'Use at least 6 characters';
-        }
-        if (key == 'confirmPassword' && value != fields['password']!.text) {
-          return 'Passwords do not match';
-        }
-        return null;
-      },
-    ),
-  );
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    body: Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: SizedBox(
-          width: 420,
-          child: Form(
-            key: form,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Icon(
-                  Icons.forum_rounded,
-                  size: 58,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'TMS Connect',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.headlineLarge,
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 20),
-                  child: Text(
-                    register
-                        ? 'Create your account'
-                        : 'Welcome back. Sign in to your conversations.',
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                if (error != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: Text(
-                      error!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
+  Widget field(String key, String label, {bool optional = false}) {
+    final password = key.toLowerCase().contains('password');
+    final hint = switch (key) {
+      'username' => 'Enter username',
+      'password' => 'Enter password',
+      'confirmPassword' => 'Confirm password',
+      'fullName' => 'Enter your full name',
+      'email' => 'Enter email',
+      'employeeId' => 'Employee ID',
+      _ => 'Nickname',
+    };
+    const border = OutlineInputBorder(
+      borderRadius: BorderRadius.all(Radius.circular(6)),
+      borderSide: BorderSide(color: Color(0xffdee2e6)),
+    );
+    return Padding(
+      padding: EdgeInsets.only(bottom: key == 'confirmPassword' ? 24 : 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text.rich(
+              TextSpan(
+                text: label,
+                children: [
+                  if (register && !optional)
+                    const TextSpan(
+                      text: ' *',
+                      style: TextStyle(color: Color(0xffdc3545)),
                     ),
-                  ),
-                if (register) field('fullName', 'Full name'),
-                field('username', register ? 'Username' : 'Username or email'),
-                if (register) field('email', 'Email'),
-                field('password', 'Password'),
-                if (register) ...[
-                  field('confirmPassword', 'Confirm password'),
-                  field('nickname', 'Nickname (optional)', optional: true),
-                  field('employeeId', 'Employee ID (optional)', optional: true),
                 ],
-                FilledButton(
-                  onPressed: busy ? null : submit,
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Text(
-                      busy
-                          ? 'Please wait…'
-                          : register
-                          ? 'Create account'
-                          : 'Sign in',
-                    ),
+              ),
+            ),
+          ),
+          TextFormField(
+            key: ValueKey(key),
+            controller: fields[key],
+            style: const TextStyle(
+              fontFamily: 'Segoe UI',
+              fontFamilyFallback: ['Arial'],
+              fontSize: 16,
+              fontWeight: FontWeight.w400,
+              height: 1.5,
+              color: Color(0xff212529),
+            ),
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: const TextStyle(
+                fontFamily: 'Segoe UI',
+                fontSize: 16,
+                fontWeight: FontWeight.w400,
+                color: Color(0xff6c757d),
+              ),
+              border: border,
+              enabledBorder: border,
+              disabledBorder: border,
+              focusedBorder: border.copyWith(
+                borderSide: const BorderSide(
+                  color: Color(0xff86b7fe),
+                  width: 2,
+                ),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 6,
+              ),
+            ),
+            obscureText: password,
+            enabled: !busy,
+            autocorrect: !password,
+            enableSuggestions: !password,
+            autofillHints: switch (key) {
+              'username' => const [AutofillHints.username],
+              'password' => [
+                register ? AutofillHints.newPassword : AutofillHints.password,
+              ],
+              'email' => const [AutofillHints.email],
+              _ => null,
+            },
+            keyboardType: key == 'email'
+                ? TextInputType.emailAddress
+                : key == 'employeeId'
+                ? TextInputType.number
+                : TextInputType.text,
+            onFieldSubmitted: (_) {
+              if (!busy) unawaited(submit());
+            },
+            validator: (value) {
+              if (!optional && (value == null || value.trim().isEmpty)) {
+                return 'Required';
+              }
+              if (key == 'email' &&
+                  !RegExp(
+                    r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+                  ).hasMatch(value ?? '')) {
+                return 'Enter a valid email';
+              }
+              if (key == 'employeeId' &&
+                  value!.isNotEmpty &&
+                  int.tryParse(value) == null) {
+                return 'Enter a whole number';
+              }
+              if (register && key == 'password' && value!.length < 6) {
+                return 'Use at least 6 characters';
+              }
+              if (key == 'confirmPassword' &&
+                  value != fields['password']!.text) {
+                return 'Passwords do not match';
+              }
+              return null;
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => AuthLayout(
+    register: register,
+    child: Form(
+      key: form,
+      child: AutofillGroup(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              register ? 'Create Account' : 'Login',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 28,
+                height: 1.2,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 24),
+            if (error != null)
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xfff8d7da),
+                  border: Border.all(color: const Color(0xfff1aeb5)),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    error!,
+                    style: const TextStyle(color: Color(0xff58151c)),
                   ),
                 ),
-                TextButton(
+              ),
+            if (register) ...[
+              field('employeeId', 'Employee ID', optional: true),
+              field('fullName', 'Full Name'),
+              field('nickname', 'Nickname', optional: true),
+            ],
+            field('username', 'Username'),
+            if (register) field('email', 'Email'),
+            field('password', 'Password'),
+            if (register) field('confirmPassword', 'Confirm Password'),
+            LegacyButton(
+              onPressed: busy ? null : submit,
+              background: const Color(0xff0d6efd),
+              radius: 6,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: Text(
+                busy
+                    ? 'Please wait…'
+                    : register
+                    ? 'Register'
+                    : 'Login',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ),
+            if (register) const SizedBox(height: 16),
+            Wrap(
+              alignment: register ? WrapAlignment.center : WrapAlignment.start,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(
+                  register
+                      ? 'Already have an account? '
+                      : "Doesn't have account? ",
+                  style: TextStyle(
+                    color: register
+                        ? const Color(0xff6c757d)
+                        : const Color(0xff212529),
+                  ),
+                ),
+                LegacyButton(
                   onPressed: busy
                       ? null
                       : () => setState(() {
                           register = !register;
                           error = null;
+                          form.currentState?.reset();
                         }),
+                  radius: 0,
+                  padding: EdgeInsets.zero,
+                  foreground: const Color(0xff0d6efd),
                   child: Text(
-                    register
-                        ? 'Already have an account? Sign in'
-                        : 'Create an account',
+                    register ? 'Login' : 'Register',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w400,
+                      decoration: TextDecoration.underline,
+                    ),
                   ),
                 ),
               ],
             ),
-          ),
+          ],
         ),
       ),
     ),
@@ -292,11 +393,16 @@ class ChatScreen extends StatefulWidget {
   final Api api;
   final Json user;
   final Future<void> Function() onLogout;
+  // The screen owns and disposes these services, including injected instances.
+  final ChatStore? chatStore;
+  final CallService? callService;
   const ChatScreen({
     super.key,
     required this.api,
     required this.user,
     required this.onLogout,
+    this.chatStore,
+    this.callService,
   });
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -311,12 +417,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   bool unread = false, sending = false, recording = false;
   int panel = 0;
   String? recordingConversation;
+  String? noticeText;
+  Timer? noticeTimer;
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    chat = ChatStore(widget.api);
-    call = CallService(chat);
+    chat = widget.chatStore ?? ChatStore(widget.api);
+    call = widget.callService ?? CallService(chat);
     push = PushService(chat, recoverCall);
     chat.addListener(changed);
     call.addListener(changed);
@@ -345,8 +453,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
   }
 
-  void notice(String text) =>
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  void notice(String text) {
+    noticeTimer?.cancel();
+    setState(() => noticeText = text);
+    noticeTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => noticeText = null);
+    });
+  }
+
   Future<void> run(Future<void> Function() action) async {
     try {
       await action();
@@ -399,6 +513,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     chat.dispose();
     composer.dispose();
     search.dispose();
+    noticeTimer?.cancel();
     unawaited(recorder.dispose());
     super.dispose();
   }
@@ -494,19 +609,40 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (mounted) setState(() => recording = false);
   }
 
-  Widget avatar(String name) => CircleAvatar(
-    child: Text(
-      name.isEmpty
-          ? '?'
-          : name.substring(0, name.length < 2 ? name.length : 2).toUpperCase(),
-    ),
-  );
+  Widget avatar(String name) => ProfileAvatar(name: name);
   String name(Json c) => (c['peerFullName'] as String?)?.isNotEmpty == true
       ? c['peerFullName'] as String
       : c['peerUsername'] as String? ?? '';
+  void changePanel(int value) => setState(() {
+    panel = value;
+    search.clear();
+  });
+
+  List<({String label, VoidCallback action})> accountMenu() => [
+    (label: 'New chat', action: () => changePanel(1)),
+    (label: 'Call history', action: () => changePanel(2)),
+    (label: 'Refresh', action: () => unawaited(run(chat.reconnect))),
+    if (PushService.supported)
+      (
+        label: 'Enable notifications',
+        action: () => unawaited(run(push.enable)),
+      ),
+    (
+      label: 'Sign out',
+      action: () => unawaited(
+        run(() async {
+          await call.end();
+          try {
+            await push.unregister();
+          } finally {
+            await widget.onLogout();
+          }
+        }),
+      ),
+    ),
+  ];
+
   Widget sidebar() {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
     final query = search.text.toLowerCase();
     final rows = panel == 1
         ? chat.contacts
@@ -522,136 +658,287 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     '${name(c)} ${c['lastMessage'] ?? ''}'
                         .toLowerCase()
                         .contains(query) &&
-                    (!unread || (c['unread'] as num) > 0),
+                    (!unread || (c['unread'] as num? ?? 0) > 0),
               )
               .toList();
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 18, 8, 8),
-          child: Row(
-            children: [
-              avatar(widget.user['username'] as String),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('TMS Connect', style: theme.textTheme.labelLarge),
-                    Text(
-                      ['Messages', 'Contacts', 'Calls'][panel],
-                      style: theme.textTheme.headlineSmall,
-                    ),
-                  ],
-                ),
+    return ColoredBox(
+      color: LegacyStyle.sidebar,
+      child: Column(
+        children: [
+          LayoutBuilder(
+            builder: (context, bounds) => Container(
+              height: LegacyStyle.headerHeight,
+              padding: EdgeInsets.symmetric(
+                horizontal: bounds.maxWidth <= 420 ? 10 : 16,
               ),
-              PopupMenuButton<String>(
-                onSelected: (value) => unawaited(
-                  run(() async {
-                    if (value == 'push') await push.enable();
-                    if (value == 'logout') {
-                      await call.end();
-                      try {
-                        await push.unregister();
-                      } finally {
-                        await widget.onLogout();
-                      }
-                    }
-                  }),
-                ),
-                itemBuilder: (_) => [
-                  if (PushService.supported)
-                    const PopupMenuItem(
-                      value: 'push',
-                      child: Text('Enable notifications'),
+              decoration: const BoxDecoration(
+                color: Color(0xebffffff),
+                border: Border(bottom: BorderSide(color: Color(0xffe8eef6))),
+              ),
+              child: Row(
+                children: [
+                  if (panel == 0) ...[
+                    ProfileAvatar(
+                      name: widget.user['username'] as String,
+                      radius: 22,
                     ),
-                  const PopupMenuItem(value: 'logout', child: Text('Sign out')),
+                    const SizedBox(width: 8),
+                    if (bounds.maxWidth > 360)
+                      const Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'TMS CONNECT',
+                            style: TextStyle(
+                              fontSize: 9,
+                              height: 1.08,
+                              letterSpacing: 1.08,
+                              fontWeight: FontWeight.w800,
+                              color: LegacyStyle.accent,
+                            ),
+                          ),
+                          SizedBox(height: 3),
+                          Text(
+                            'Messages',
+                            style: TextStyle(
+                              fontSize: 17,
+                              height: 1.08,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -.34,
+                            ),
+                          ),
+                        ],
+                      ),
+                    const Spacer(),
+                    LegacyIconButton(
+                      icon: Icons.phone_callback_outlined,
+                      tooltip: 'Call History',
+                      onPressed: () => changePanel(2),
+                    ),
+                    const SizedBox(width: 8),
+                    LegacyIconButton(
+                      icon: Icons.add_comment_outlined,
+                      tooltip: 'New chat',
+                      primary: true,
+                      onPressed: () => changePanel(1),
+                    ),
+                    const SizedBox(width: 8),
+                    LegacyMenu(
+                      tooltip: 'Chat list options',
+                      items: accountMenu(),
+                    ),
+                  ] else ...[
+                    LegacyIconButton(
+                      icon: Icons.west,
+                      tooltip: 'Back to chats',
+                      onPressed: () => changePanel(0),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            panel == 1 ? 'New chat' : 'Call history',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -.27,
+                            ),
+                          ),
+                          Text(
+                            panel == 1
+                                ? 'Pick someone to message'
+                                : 'Incoming and outgoing calls',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: LegacyStyle.muted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (panel == 2)
+                      LegacyIconButton(
+                        icon: Icons.refresh,
+                        tooltip: 'Refresh call history',
+                        onPressed: () => unawaited(run(chat.refresh)),
+                      )
+                    else
+                      LegacyMenu(
+                        tooltip: 'New chat options',
+                        items: accountMenu(),
+                      ),
+                  ],
                 ],
               ),
-            ],
+            ),
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: SearchBar(
-            controller: search,
-            onChanged: (_) => setState(() {}),
-            leading: const Icon(Icons.search),
-            hintText: [
-              'Search chats',
-              'Search contacts',
-              'Search calls',
-            ][panel],
-            elevation: const WidgetStatePropertyAll(0),
-          ),
-        ),
-        if (panel == 0)
-          Row(
-            children: [
-              const SizedBox(width: 16),
-              ChoiceChip(
-                label: const Text('All'),
-                selected: !unread,
-                onSelected: (_) => setState(() => unread = false),
+          if (panel != 2)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+              child: SizedBox(
+                height: 46,
+                child: TextField(
+                  controller: search,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                  ),
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    hintText: panel == 1
+                        ? 'Search name or number'
+                        : 'Search or start a new chat',
+                    prefixIcon: const Icon(
+                      Icons.search,
+                      size: 21,
+                      color: LegacyStyle.muted,
+                    ),
+                    suffixIcon: query.isEmpty
+                        ? null
+                        : LegacyIconButton(
+                            icon: Icons.close,
+                            tooltip: 'Clear search',
+                            size: 28,
+                            onPressed: () => setState(search.clear),
+                          ),
+                  ),
+                ),
               ),
-              const SizedBox(width: 8),
-              ChoiceChip(
-                label: const Text('Unread'),
-                selected: unread,
-                onSelected: (_) => setState(() => unread = true),
+            ),
+          if (panel == 0)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 2, 14, 10),
+              child: Row(
+                children: [
+                  for (final filter in [false, true]) ...[
+                    LegacyButton(
+                      onPressed: () => setState(() => unread = filter),
+                      background: unread == filter
+                          ? LegacyStyle.soft
+                          : LegacyStyle.sidebar,
+                      foreground: unread == filter
+                          ? LegacyStyle.accentDark
+                          : LegacyStyle.muted,
+                      radius: 999,
+                      height: 34,
+                      border: Border.all(
+                        color: unread == filter
+                            ? const Color(0xffbdd5ff)
+                            : LegacyStyle.border,
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 15,
+                        vertical: 6,
+                      ),
+                      child: Text(
+                        filter ? 'Unread' : 'All',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                ],
               ),
-            ],
-          ),
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: () => run(chat.refresh),
+            ),
+          Expanded(
             child: panel == 2
                 ? ListView(
-                    padding: const EdgeInsets.all(8),
-                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(9, 8, 9, 16),
                     children: [
                       if (chat.calls.isEmpty)
-                        const ListTile(title: Text('No calls yet')),
-                      for (final c in chat.calls.where(
-                        (c) => (c['peerUsername'] as String)
-                            .toLowerCase()
-                            .contains(query),
-                      ))
-                        ListTile(
-                          leading: Icon(
-                            c['outgoing'] == true
-                                ? Icons.call_made
-                                : Icons.call_received,
+                        const Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 52,
                           ),
-                          title: Text(c['peerUsername'] as String),
-                          subtitle: Text(
-                            '${c['callType']} · ${c['status']}\n${localTime(c['startDate'])}${c['duration'] == null ? '' : ' · ${c['duration']} sec'}',
+                          child: Text(
+                            'No calls yet',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: LegacyStyle.muted),
                           ),
-                          trailing: const Icon(Icons.call_outlined),
-                          onTap: () => run(
-                            () => call.start(
-                              c['peerUsername'] as String,
-                              c['callType'] == 'Video',
+                        ),
+                      for (final c in chat.calls)
+                        chatRow(
+                          label: c['peerUsername'] as String,
+                          subtitle:
+                              '${c['outgoing'] == true ? 'Outgoing' : 'Incoming'} · ${c['status']}${c['duration'] == null ? '' : ' · ${c['duration']} sec'}',
+                          leading: avatar(c['peerUsername'] as String),
+                          trailing: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                localTime(c['startDate']),
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  color: LegacyStyle.muted,
+                                ),
+                              ),
+                              Icon(
+                                c['callType'] == 'Video'
+                                    ? Icons.videocam_outlined
+                                    : Icons.call_outlined,
+                                size: 20,
+                                color: LegacyStyle.accent,
+                              ),
+                            ],
+                          ),
+                          onTap: () => unawaited(
+                            run(
+                              () => call.start(
+                                c['peerUsername'] as String,
+                                c['callType'] == 'Video',
+                              ),
                             ),
                           ),
                         ),
                     ],
                   )
                 : ListView.builder(
-                    padding: const EdgeInsets.all(8),
-                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(9, 2, 9, 14),
                     itemCount: rows.isEmpty ? 1 : rows.length,
                     itemBuilder: (_, i) {
                       if (rows.isEmpty) {
-                        return ListTile(
-                          title: Text(
-                            panel == 1
-                                ? 'No contacts found'
-                                : 'No conversations yet',
-                          ),
-                          subtitle: const Text(
-                            'Start a conversation from Contacts.',
-                          ),
+                        if (panel == 1) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 48,
+                            ),
+                            child: Text(
+                              'No contacts found',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: LegacyStyle.muted),
+                            ),
+                          );
+                        }
+                        final filtered =
+                            chat.conversations.isNotEmpty ||
+                            query.isNotEmpty ||
+                            unread;
+                        return EmptyState(
+                          icon: filtered
+                              ? Icons.search_off
+                              : Icons.forum_outlined,
+                          title: filtered
+                              ? 'No conversations found'
+                              : 'Your inbox is ready',
+                          description: filtered
+                              ? 'Try another name or change the active filter.'
+                              : 'Start a conversation with your dispatch team or another driver.',
+                          action: filtered
+                              ? null
+                              : LegacyButton(
+                                  onPressed: () => changePanel(1),
+                                  background: LegacyStyle.accent,
+                                  height: 42,
+                                  child: const Text('Start a chat'),
+                                ),
                         );
                       }
                       final c = rows[i];
@@ -659,387 +946,1004 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           ? (c['fullName'] as String? ??
                                 c['username'] as String)
                           : name(c);
-                      return ListTile(
+                      final count = panel == 0 ? c['unread'] as num? ?? 0 : 0;
+                      return chatRow(
+                        label: label,
+                        subtitle: panel == 1
+                            ? '${c['username']} · ${c['status']}'
+                            : c['lastMessage'] as String? ??
+                                  'Start the conversation',
                         selected: panel == 0 && c['id'] == chat.selected?['id'],
-                        leading: avatar(label),
-                        title: Text(
-                          label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        leading: ProfileAvatar(
+                          name: label,
+                          online:
+                              (panel == 1 ? c['status'] : c['peerStatus']) ==
+                              'Online',
                         ),
-                        subtitle: Text(
-                          panel == 1
-                              ? '${c['username']} · ${c['status']}'
-                              : c['lastMessage'] as String? ??
-                                    'Start the conversation',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        trailing: panel == 0 && (c['unread'] as num) > 0
-                            ? Badge(label: Text('${c['unread']}'))
+                        trailing: panel == 0
+                            ? Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    messageTime(c['lastMessageAt']),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: count > 0
+                                          ? LegacyStyle.accent
+                                          : LegacyStyle.muted,
+                                    ),
+                                  ),
+                                  if (count > 0) ...[
+                                    const SizedBox(height: 4),
+                                    Container(
+                                      constraints: const BoxConstraints(
+                                        minWidth: 20,
+                                      ),
+                                      height: 20,
+                                      alignment: Alignment.center,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: LegacyStyle.accent,
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        '$count',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              )
                             : null,
-                        onTap: () => run(() async {
-                          if (recording) await cancelVoice();
-                          composer.clear();
-                          if (panel == 1) {
-                            await chat.direct(c['username'] as String);
-                          } else {
-                            await chat.open(c);
-                          }
-                        }),
+                        onTap: () => unawaited(
+                          run(() async {
+                            if (recording) await cancelVoice();
+                            composer.clear();
+                            if (panel == 1) {
+                              await chat.direct(c['username'] as String);
+                              if (mounted) changePanel(0);
+                            } else {
+                              await chat.open(c);
+                            }
+                          }),
+                        ),
                       );
                     },
                   ),
           ),
-        ),
-        ListTile(
-          dense: true,
-          leading: Icon(
-            Icons.circle,
-            size: 10,
-            color: chat.connection == 'Connected'
-                ? colors.primary
-                : colors.error,
-          ),
-          title: Text(chat.connection),
-          trailing: IconButton(
-            tooltip: 'Reconnect and refresh',
-            onPressed: () => run(chat.reconnect),
-            icon: const Icon(Icons.refresh),
-          ),
-        ),
-        NavigationBar(
-          selectedIndex: panel,
-          onDestinationSelected: (value) => setState(() => panel = value),
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.chat_bubble_outline),
-              selectedIcon: Icon(Icons.chat_bubble),
-              label: 'Chats',
+          if (chat.connection != 'Connected')
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+              color: LegacyStyle.soft,
+              child: Row(
+                children: [
+                  const Icon(Icons.circle, size: 7, color: LegacyStyle.accent),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      chat.connection,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: LegacyStyle.muted,
+                      ),
+                    ),
+                  ),
+                  LegacyIconButton(
+                    icon: Icons.refresh,
+                    tooltip: 'Reconnect and refresh',
+                    size: 32,
+                    onPressed: () => unawaited(run(chat.reconnect)),
+                  ),
+                ],
+              ),
             ),
-            NavigationDestination(
-              icon: Icon(Icons.people_outline),
-              selectedIcon: Icon(Icons.people),
-              label: 'Contacts',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.call_outlined),
-              selectedIcon: Icon(Icons.call),
-              label: 'Calls',
-            ),
-          ],
-        ),
-      ],
+        ],
+      ),
     );
+  }
+
+  Widget chatRow({
+    required String label,
+    required String subtitle,
+    required Widget leading,
+    Widget? trailing,
+    bool selected = false,
+    required VoidCallback onTap,
+  }) => Container(
+    margin: const EdgeInsets.symmetric(vertical: 2),
+    decoration: selected
+        ? BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xffedf4ff), Color(0xfff8fbff)],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xffccddfb)),
+            boxShadow: LegacyStyle.shadow,
+          )
+        : null,
+    child: LegacyButton(
+      onPressed: onTap,
+      foreground: LegacyStyle.text,
+      radius: 16,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+      child: Row(
+        children: [
+          leading,
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w400,
+                    color: LegacyStyle.muted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (trailing != null) ...[const SizedBox(width: 8), trailing],
+        ],
+      ),
+    ),
+  );
+
+  Future<void> leaveConversation() async {
+    final leave = await showGeneralDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Cancel',
+      pageBuilder: (context, _, _) => Center(
+        child: Container(
+          margin: const EdgeInsets.all(24),
+          constraints: const BoxConstraints(maxWidth: 400),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: DefaultTextStyle(
+            style: const TextStyle(
+              color: LegacyStyle.text,
+              fontSize: 14.5,
+              height: 1.4,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Leave conversation?',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'This removes the conversation from your chat list.',
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    LegacyButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Cancel'),
+                    ),
+                    LegacyButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      background: LegacyStyle.danger,
+                      child: const Text('Leave'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (leave == true) {
+      await run(() async {
+        if (recording) await cancelVoice();
+        await chat.leave();
+      });
+    }
   }
 
   Widget conversation(bool wide) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
     final c = chat.selected;
-    if (c == null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.forum_outlined, size: 72, color: colors.primary),
-            const SizedBox(height: 18),
-            Text(
-              'Your conversations, connected.',
-              style: theme.textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 8),
-            const Text('Choose a chat or start one from Contacts.'),
-          ],
-        ),
-      );
-    }
-    return Column(
-      children: [
-        Material(
-          color: colors.surfaceContainer,
-          child: ListTile(
-            leading: wide
-                ? avatar(name(c))
-                : IconButton(
-                    tooltip: 'Back',
-                    icon: const Icon(Icons.arrow_back),
-                    onPressed: () => run(() async {
-                      if (recording) await cancelVoice();
-                      chat.closeConversation();
-                    }),
-                  ),
-            title: Text(name(c)),
-            subtitle: Text(c['peerStatus'] as String? ?? 'Offline'),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  tooltip: 'Voice call',
-                  onPressed: recording
-                      ? null
-                      : () => run(
-                          () => call.start(c['peerUsername'] as String, false),
-                        ),
-                  icon: const Icon(Icons.call_outlined),
-                ),
-                IconButton(
-                  tooltip: 'Video call',
-                  onPressed: recording
-                      ? null
-                      : () => run(
-                          () => call.start(c['peerUsername'] as String, true),
-                        ),
-                  icon: const Icon(Icons.videocam_outlined),
-                ),
-                IconButton(
-                  tooltip: 'Leave conversation',
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: () async {
-                    final leave = await showDialog<bool>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Leave conversation?'),
-                        content: const Text(
-                          'This removes the conversation from your chat list.',
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, false),
-                            child: const Text('Cancel'),
-                          ),
-                          FilledButton(
-                            onPressed: () => Navigator.pop(context, true),
-                            child: const Text('Leave'),
-                          ),
-                        ],
-                      ),
-                    );
-                    if (leave == true) {
-                      await run(() async {
-                        if (recording) await cancelVoice();
-                        await chat.leave();
-                      });
-                    }
-                  },
+    final enabled = c != null && !sending && chat.connection == 'Connected';
+    return LegacyChatBackground(
+      child: Column(
+        children: [
+          Container(
+            height: 72,
+            padding: EdgeInsets.symmetric(horizontal: wide ? 18 : 8),
+            decoration: const BoxDecoration(
+              color: Color(0xebffffff),
+              border: Border(bottom: BorderSide(color: Color(0xffe3ebf5))),
+              boxShadow: [
+                BoxShadow(
+                  color: Color(0x0d17324d),
+                  blurRadius: 18,
+                  offset: Offset(0, 3),
                 ),
               ],
             ),
-          ),
-        ),
-        if (chat.loading) const LinearProgressIndicator(),
-        Expanded(
-          child: ListView.builder(
-            reverse: true,
-            padding: const EdgeInsets.all(20),
-            itemCount: chat.messages.length + 1,
-            itemBuilder: (_, index) {
-              if (index == chat.messages.length) {
-                return chat.hasOlder && chat.messages.isNotEmpty
-                    ? TextButton(
-                        onPressed: chat.loading ? null : () => run(chat.older),
-                        child: const Text('Load older messages'),
-                      )
-                    : Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Text(
-                          'Start of conversation',
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            color: colors.onSurfaceVariant,
-                          ),
-                        ),
-                      );
-              }
-              final m = chat.messages[chat.messages.length - 1 - index];
-              return MessageBubble(
-                key: ValueKey(m['id']),
-                message: m,
-                api: widget.api,
-                onError: notice,
-              );
-            },
-          ),
-        ),
-        SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                IconButton(
-                  tooltip: 'Attach file',
-                  onPressed: sending || recording ? null : () => run(attach),
-                  icon: const Icon(Icons.attach_file),
+                if (!wide)
+                  LegacyIconButton(
+                    icon: Icons.west,
+                    tooltip: 'Back to conversations',
+                    size: 38,
+                    onPressed: () => unawaited(
+                      run(() async {
+                        if (recording) await cancelVoice();
+                        chat.closeConversation();
+                      }),
+                    ),
+                  ),
+                ProfileAvatar(
+                  name: c == null ? 'TMS' : name(c),
+                  initials: c == null ? 'TMS' : null,
+                  radius: 22,
                 ),
+                const SizedBox(width: 14),
                 Expanded(
-                  child: recording
-                      ? const Text('Recording voice note…')
-                      : TextField(
-                          controller: composer,
-                          minLines: 1,
-                          maxLines: 4,
-                          textInputAction: TextInputAction.send,
-                          onSubmitted: (_) => send(),
-                          decoration: const InputDecoration(
-                            hintText: 'Type a message',
-                            isDense: true,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        c == null ? 'Messages' : name(c),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -.16,
+                        ),
+                      ),
+                      Text(
+                        c == null
+                            ? 'Choose a conversation to get started'
+                            : c['peerStatus'] as String? ?? 'Offline',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: c?['peerStatus'] == 'Online'
+                              ? const Color(0xff07835f)
+                              : LegacyStyle.muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                LegacyIconButton(
+                  icon: Icons.call_outlined,
+                  tooltip: 'Voice call',
+                  size: wide ? 42 : 38,
+                  onPressed: c == null || recording
+                      ? null
+                      : () => unawaited(
+                          run(
+                            () =>
+                                call.start(c['peerUsername'] as String, false),
                           ),
                         ),
                 ),
-                if (recording)
-                  IconButton(
-                    tooltip: 'Cancel recording',
-                    onPressed: () => run(cancelVoice),
-                    icon: const Icon(Icons.delete_outline),
-                  ),
-                IconButton(
-                  tooltip: recording ? 'Send voice note' : 'Record voice note',
-                  onPressed: () => run(voice),
-                  icon: Icon(
-                    recording ? Icons.stop_circle : Icons.mic_none,
-                    color: recording ? colors.error : null,
-                  ),
+                LegacyIconButton(
+                  icon: Icons.videocam_outlined,
+                  tooltip: 'Video call',
+                  size: wide ? 42 : 38,
+                  onPressed: c == null || recording
+                      ? null
+                      : () => unawaited(
+                          run(
+                            () => call.start(c['peerUsername'] as String, true),
+                          ),
+                        ),
                 ),
-                if (!recording)
-                  IconButton.filled(
-                    tooltip: 'Send',
-                    onPressed: sending || chat.connection != 'Connected'
-                        ? null
-                        : send,
-                    icon: const Icon(Icons.send),
-                  ),
+                LegacyMenu(
+                  tooltip: 'Chat options',
+                  items: [
+                    if (c != null)
+                      (
+                        label: 'Leave conversation',
+                        action: () => unawaited(leaveConversation()),
+                      ),
+                    (label: 'New chat', action: () => changePanel(1)),
+                  ],
+                ),
               ],
             ),
           ),
-        ),
-      ],
+          if (chat.loading)
+            const SizedBox(
+              height: 2,
+              child: LinearProgressIndicator(
+                color: LegacyStyle.accent,
+                backgroundColor: LegacyStyle.soft,
+              ),
+            ),
+          Expanded(
+            child: c == null
+                ? LegacyWelcome(onNewChat: () => changePanel(1))
+                : LayoutBuilder(
+                    builder: (context, bounds) => Align(
+                      alignment: Alignment.topCenter,
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        reverse: true,
+                        padding: EdgeInsets.fromLTRB(
+                          wide
+                              ? (MediaQuery.sizeOf(context).width * .06).clamp(
+                                  18,
+                                  84,
+                                )
+                              : bounds.maxWidth * .04,
+                          22,
+                          wide
+                              ? (MediaQuery.sizeOf(context).width * .06).clamp(
+                                  18,
+                                  84,
+                                )
+                              : bounds.maxWidth * .04,
+                          26,
+                        ),
+                        itemCount: chat.messages.length + 1,
+                        itemBuilder: (_, index) {
+                          if (index == chat.messages.length) {
+                            return Column(
+                              children: [
+                                if (chat.hasOlder && chat.messages.isNotEmpty)
+                                  LegacyButton(
+                                    onPressed: chat.loading
+                                        ? null
+                                        : () => unawaited(run(chat.older)),
+                                    foreground: LegacyStyle.accent,
+                                    child: const Text('Load older messages'),
+                                  ),
+                                Container(
+                                  margin: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 13,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xebeff6ff),
+                                    border: Border.all(
+                                      color: const Color(0xffc9dcfd),
+                                    ),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.lock_outline,
+                                        size: 15,
+                                        color: LegacyStyle.accentDark,
+                                      ),
+                                      SizedBox(width: 6),
+                                      Flexible(
+                                        child: Text(
+                                          'Messages are private and secure.',
+                                          style: TextStyle(
+                                            fontSize: 12.2,
+                                            color: LegacyStyle.accentDark,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (chat.messages.isEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      0,
+                                      26,
+                                      0,
+                                      18,
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        ProfileAvatar(
+                                          name: name(c),
+                                          radius: 36,
+                                        ),
+                                        const SizedBox(height: 13),
+                                        Text(
+                                          name(c),
+                                          style: const TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 3),
+                                        const Text(
+                                          'This is the beginning of your conversation.',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: LegacyStyle.muted,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                              ],
+                            );
+                          }
+                          final m =
+                              chat.messages[chat.messages.length - 1 - index];
+                          return MessageBubble(
+                            key: ValueKey(m['id']),
+                            message: m,
+                            api: widget.api,
+                            onError: notice,
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+          ),
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: wide ? 16 : 8,
+              vertical: wide ? 11 : 9,
+            ),
+            decoration: const BoxDecoration(
+              color: Color(0xebf8fbff),
+              border: Border(top: BorderSide(color: Color(0xffdfe8f2))),
+              boxShadow: [
+                BoxShadow(
+                  color: Color(0x0a17324d),
+                  blurRadius: 20,
+                  offset: Offset(0, -4),
+                ),
+              ],
+            ),
+            child: recording
+                ? Container(
+                    padding: const EdgeInsets.only(
+                      left: 15,
+                      right: 5,
+                      top: 5,
+                      bottom: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xfffff7f7),
+                      border: Border.all(color: const Color(0xfffecaca)),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.circle,
+                          size: 10,
+                          color: Color(0xffef4444),
+                        ),
+                        const SizedBox(width: 11),
+                        const Expanded(
+                          child: Text(
+                            'Recording voice note',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        LegacyIconButton(
+                          icon: Icons.delete_outline,
+                          tooltip: 'Cancel voice note',
+                          onPressed: () => unawaited(run(cancelVoice)),
+                        ),
+                        LegacyIconButton(
+                          icon: Icons.send_outlined,
+                          tooltip: 'Send voice note',
+                          primary: true,
+                          onPressed: () => unawaited(run(voice)),
+                        ),
+                      ],
+                    ),
+                  )
+                : Row(
+                    children: [
+                      LegacyIconButton(
+                        icon: Icons.attach_file,
+                        tooltip: 'Attach file',
+                        size: wide ? 42 : 40,
+                        onPressed: enabled
+                            ? () => unawaited(run(attach))
+                            : null,
+                      ),
+                      SizedBox(width: wide ? 8 : 4),
+                      Expanded(
+                        child: TextField(
+                          controller: composer,
+                          enabled: enabled,
+                          minLines: 1,
+                          maxLines: 4,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w400,
+                          ),
+                          textInputAction: TextInputAction.send,
+                          onSubmitted: (_) => send(),
+                          onChanged: (_) => setState(() {}),
+                          decoration: InputDecoration(
+                            hintText: 'Type a message',
+                            fillColor: c == null
+                                ? const Color(0xfff3f6fa)
+                                : Colors.white,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: wide ? 8 : 4),
+                      if (composer.text.isEmpty)
+                        LegacyIconButton(
+                          icon: Icons.mic_none,
+                          tooltip: 'Record voice message',
+                          size: wide ? 42 : 40,
+                          onPressed: enabled
+                              ? () => unawaited(run(voice))
+                              : null,
+                        )
+                      else
+                        LegacyIconButton(
+                          icon: Icons.send_outlined,
+                          tooltip: 'Send message',
+                          primary: true,
+                          size: wide ? 42 : 40,
+                          onPressed: enabled ? () => unawaited(send()) : null,
+                        ),
+                    ],
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
+  Widget callControls({bool dark = false}) => Wrap(
+    alignment: WrapAlignment.center,
+    spacing: 12,
+    runSpacing: 12,
+    children: [
+      LegacyIconButton(
+        icon: call.muted ? Icons.mic_off_outlined : Icons.mic_none,
+        tooltip: call.muted ? 'Unmute microphone' : 'Mute microphone',
+        onPressed: call.mute,
+        size: 54,
+        radius: 27,
+        background: call.muted
+            ? LegacyStyle.soft
+            : dark
+            ? const Color(0x33ffffff)
+            : Colors.white,
+        foreground: dark ? Colors.white : LegacyStyle.muted,
+      ),
+      if (call.video)
+        LegacyIconButton(
+          icon: call.camera
+              ? Icons.videocam_outlined
+              : Icons.videocam_off_outlined,
+          tooltip: 'Toggle camera',
+          onPressed: call.toggleCamera,
+          size: 54,
+          radius: 27,
+          background: dark ? const Color(0x33ffffff) : Colors.white,
+          foreground: dark ? Colors.white : LegacyStyle.muted,
+        ),
+      if (!kIsWeb &&
+          (defaultTargetPlatform == TargetPlatform.android ||
+              defaultTargetPlatform == TargetPlatform.iOS))
+        LegacyIconButton(
+          icon: call.speaker
+              ? Icons.volume_up_outlined
+              : Icons.hearing_outlined,
+          tooltip: 'Speaker',
+          onPressed: () => unawaited(run(call.toggleSpeaker)),
+          size: 54,
+          radius: 27,
+          background: dark ? const Color(0x33ffffff) : Colors.white,
+          foreground: dark ? Colors.white : LegacyStyle.muted,
+        ),
+      LegacyIconButton(
+        icon: Icons.call_end,
+        tooltip: 'End call',
+        onPressed: () => unawaited(run(call.end)),
+        size: 54,
+        radius: 27,
+        background: LegacyStyle.danger,
+      ),
+    ],
+  );
+
   Widget callOverlay() => Positioned.fill(
-    child: Material(
-      color: Theme.of(context).colorScheme.inverseSurface,
-      child: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 24),
-            Text(
-              call.peer ?? '',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onInverseSurface,
-              ),
-            ),
-            Text(
-              call.status,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onInverseSurface,
-              ),
-            ),
-            Expanded(
-              child: call.video && !call.incoming
-                  ? Stack(
-                      children: [
-                        Positioned.fill(
-                          child: RTCVideoView(
-                            call.remote,
-                            objectFit: RTCVideoViewObjectFit
-                                .RTCVideoViewObjectFitContain,
+    child: Semantics(
+      scopesRoute: true,
+      explicitChildNodes: true,
+      namesRoute: true,
+      label: call.incoming ? 'Incoming call' : 'Call',
+      child: BlockSemantics(
+        child: ColoredBox(
+          color: call.incoming || call.video
+              ? const Color(0xff07182b)
+              : const Color(0x73000000),
+          child: SafeArea(
+            child: call.incoming
+                ? LayoutBuilder(
+                    builder: (context, bounds) => SingleChildScrollView(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: bounds.maxHeight,
+                        ),
+                        child: Container(
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [Color(0xff153a68), Color(0xff07182b)],
+                            ),
+                          ),
+                          padding: const EdgeInsets.fromLTRB(24, 28, 24, 42),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0x12ffffff),
+                                  border: Border.all(
+                                    color: const Color(0x1fffffff),
+                                  ),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: const Text(
+                                  '☎  INCOMING CALL',
+                                  style: TextStyle(
+                                    color: Color(0xffdbeafe),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: .52,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 64),
+                              Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: const Color(0x7093c5fd),
+                                  ),
+                                ),
+                                child: ProfileAvatar(
+                                  name: call.peer!,
+                                  radius: 74,
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              Text(
+                                call.peer!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 44,
+                                  fontWeight: FontWeight.w700,
+                                  height: 1.12,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                call.video ? 'Video call' : 'Voice call',
+                                style: const TextStyle(
+                                  color: Color(0xffbfdbfe),
+                                  fontSize: 17,
+                                ),
+                              ),
+                              const SizedBox(height: 18),
+                              const Text(
+                                'Private and secure',
+                                style: TextStyle(
+                                  color: Color(0xffa7f3d0),
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(height: 62),
+                              SizedBox(
+                                width: 320,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    for (final accept in [false, true])
+                                      Expanded(
+                                        child: Column(
+                                          children: [
+                                            LegacyIconButton(
+                                              icon: accept
+                                                  ? Icons.call
+                                                  : Icons.call_end,
+                                              tooltip: accept
+                                                  ? 'Accept call'
+                                                  : 'Decline call',
+                                              onPressed: () => unawaited(
+                                                run(
+                                                  accept
+                                                      ? call.accept
+                                                      : call.end,
+                                                ),
+                                              ),
+                                              size: 76,
+                                              radius: 38,
+                                              background: accept
+                                                  ? const Color(0xff16a34a)
+                                                  : LegacyStyle.danger,
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              accept ? 'Accept' : 'Decline',
+                                              style: const TextStyle(
+                                                color: Color(0xffeaf2ff),
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 30),
+                              const Text(
+                                'Choose an action to continue',
+                                style: TextStyle(
+                                  color: Color(0xff93aeca),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        Positioned(
-                          top: 16,
-                          right: 16,
-                          width: 140,
-                          height: 180,
-                          child: RTCVideoView(call.local, mirror: true),
+                      ),
+                    ),
+                  )
+                : call.video
+                ? Stack(
+                    children: [
+                      Positioned.fill(
+                        child: RTCVideoView(
+                          call.remote,
+                          objectFit:
+                              RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
                         ),
-                      ],
-                    )
-                  : Icon(
-                      Icons.account_circle,
-                      size: 140,
-                      color: Theme.of(context).colorScheme.onInverseSurface,
-                    ),
-            ),
-            Wrap(
-              spacing: 20,
-              children: [
-                if (call.incoming)
-                  FilledButton.icon(
-                    onPressed: () => run(call.accept),
-                    icon: const Icon(Icons.call),
-                    label: const Text('Accept'),
-                  ),
-                if (!call.incoming) ...[
-                  IconButton.filled(
-                    tooltip: 'Mute microphone',
-                    onPressed: call.mute,
-                    icon: Icon(call.muted ? Icons.mic_off : Icons.mic),
-                  ),
-                  if (call.video)
-                    IconButton.filled(
-                      tooltip: 'Toggle camera',
-                      onPressed: call.toggleCamera,
-                      icon: Icon(
-                        call.camera ? Icons.videocam : Icons.videocam_off,
+                      ),
+                      Positioned(
+                        top: 24,
+                        left: 24,
+                        right: 24,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              call.peer!,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 25,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              call.status,
+                              style: const TextStyle(color: Color(0xffbfd5ed)),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Positioned(
+                        bottom: 112,
+                        right: 20,
+                        width: 140,
+                        height: 187,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(18),
+                          child: Stack(
+                            children: [
+                              Positioned.fill(
+                                child: RTCVideoView(call.local, mirror: true),
+                              ),
+                              const Positioned(
+                                left: 8,
+                                bottom: 7,
+                                child: Text(
+                                  'You',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        bottom: 24,
+                        left: 16,
+                        right: 16,
+                        child: callControls(dark: true),
+                      ),
+                    ],
+                  )
+                : Center(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: Container(
+                        width: 420,
+                        constraints: const BoxConstraints(minHeight: 460),
+                        padding: const EdgeInsets.fromLTRB(24, 42, 24, 28),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Colors.white, Color(0xffeaf2ff)],
+                          ),
+                          border: Border.all(color: LegacyStyle.border),
+                          borderRadius: BorderRadius.circular(22),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x401e3a5f),
+                              blurRadius: 60,
+                              offset: Offset(0, 20),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const SizedBox(height: 35),
+                            ProfileAvatar(name: call.peer!, radius: 48),
+                            const SizedBox(height: 18),
+                            Text(
+                              call.peer!,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 25,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 5),
+                            Text(
+                              call.status,
+                              style: const TextStyle(color: LegacyStyle.muted),
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'Voice call',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: LegacyStyle.accent,
+                              ),
+                            ),
+                            const SizedBox(height: 48),
+                            callControls(),
+                          ],
+                        ),
                       ),
                     ),
-                  if (!kIsWeb &&
-                      (defaultTargetPlatform == TargetPlatform.android ||
-                          defaultTargetPlatform == TargetPlatform.iOS))
-                    IconButton.filled(
-                      tooltip: 'Speaker',
-                      onPressed: () => run(call.toggleSpeaker),
-                      icon: Icon(
-                        call.speaker ? Icons.volume_up : Icons.hearing,
-                      ),
-                    ),
-                ],
-                FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.error,
-                    foregroundColor: Theme.of(context).colorScheme.onError,
                   ),
-                  onPressed: () => run(call.end),
-                  icon: const Icon(Icons.call_end),
-                  label: Text(call.incoming ? 'Decline' : 'End call'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 36),
-          ],
+          ),
         ),
       ),
     ),
   );
+
   @override
   Widget build(BuildContext context) => Scaffold(
     body: SafeArea(
       child: LayoutBuilder(
-        builder: (_, bounds) {
-          final wide = bounds.maxWidth >= 800;
+        builder: (context, bounds) {
+          final wide = bounds.maxWidth > LegacyStyle.mobileBreakpoint;
           return Stack(
             children: [
               if (wide)
                 Row(
                   children: [
-                    SizedBox(width: 350, child: sidebar()),
-                    const VerticalDivider(width: 1),
+                    SizedBox(
+                      width: LegacyStyle.sidebarWidth,
+                      child: DecoratedBox(
+                        decoration: const BoxDecoration(
+                          border: Border(
+                            right: BorderSide(color: LegacyStyle.border),
+                          ),
+                        ),
+                        child: sidebar(),
+                      ),
+                    ),
                     Expanded(child: conversation(true)),
                   ],
                 )
-              else if (chat.selected == null)
+              else if (chat.selected == null || panel != 0)
                 sidebar()
               else
                 conversation(false),
               if (call.peer != null) callOverlay(),
+              if (noticeText != null)
+                Positioned(
+                  bottom: 24,
+                  left: 16,
+                  right: 16,
+                  child: Center(
+                    child: Container(
+                      constraints: const BoxConstraints(maxWidth: 520),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 17,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xee102a43),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Semantics(
+                        liveRegion: true,
+                        child: Text(
+                          noticeText!,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           );
         },
       ),
     ),
   );
+}
+
+String messageTime(dynamic value) {
+  final date = DateTime.tryParse(value?.toString() ?? '')?.toLocal();
+  if (date == null) return '';
+  return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
 }
 
 String localTime(dynamic value) {
@@ -1145,89 +2049,165 @@ class _MessageBubbleState extends State<MessageBubble> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    final m = widget.message,
-        mine = m['mine'] == true,
-        a = m['attachment'] as Map?;
+    final m = widget.message;
+    final mine = m['mine'] == true;
+    final a = m['attachment'] as Map?;
     final audio = a != null && (a['mimeType'] as String).startsWith('audio/');
-    return Align(
-      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 500),
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: mine ? colors.primaryContainer : colors.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (preview != null)
-              FutureBuilder<Uint8List>(
-                future: preview,
-                builder: (context, snapshot) {
-                  if (snapshot.hasError) {
-                    return const Text(
-                      'Image unavailable. Use Download to retry.',
-                    );
-                  }
-                  if (!snapshot.hasData) {
-                    return const SizedBox(
-                      width: 180,
-                      height: 100,
-                      child: Center(child: CircularProgressIndicator()),
-                    );
-                  }
-                  return ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Image.memory(
-                      snapshot.data!,
-                      width: 260,
-                      height: 180,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, error, stack) =>
-                          const Text('Cannot preview this image.'),
-                    ),
-                  );
-                },
+    final foreground = mine ? Colors.white : LegacyStyle.text;
+    return LayoutBuilder(
+      builder: (context, bounds) => Align(
+        alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+        child: Container(
+          constraints: BoxConstraints(
+            maxWidth:
+                (bounds.maxWidth *
+                        (MediaQuery.sizeOf(context).width > 900 ? .76 : .85))
+                    .clamp(0, 620),
+          ),
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.fromLTRB(13, 10, 13, 9),
+          decoration: BoxDecoration(
+            color: mine ? null : Colors.white,
+            gradient: mine
+                ? const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xff3475ed), LegacyStyle.accent],
+                  )
+                : null,
+            border: Border.all(
+              color: mine ? const Color(0xff2d65dc) : const Color(0xffe3eaf2),
+            ),
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(mine ? 18 : 5),
+              topRight: Radius.circular(mine ? 5 : 18),
+              bottomLeft: const Radius.circular(18),
+              bottomRight: const Radius.circular(18),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: mine ? const Color(0x262563eb) : const Color(0x121f436d),
+                blurRadius: mine ? 18 : 16,
+                offset: Offset(0, mine ? 7 : 5),
               ),
-            if (m['text'] != null && (m['text'] as String).isNotEmpty)
-              SelectableText(
-                m['text'] as String,
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: mine ? colors.onPrimaryContainer : colors.onSurface,
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (preview != null)
+                FutureBuilder<Uint8List>(
+                  future: preview,
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return Text(
+                        'Image unavailable. Use Download to retry.',
+                        style: TextStyle(color: foreground),
+                      );
+                    }
+                    if (!snapshot.hasData) {
+                      return const SizedBox(
+                        width: 180,
+                        height: 100,
+                        child: Center(
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      );
+                    }
+                    return ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.memory(
+                        snapshot.data!,
+                        width: 260,
+                        height: 180,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, error, stack) => Text(
+                          'Cannot preview this image.',
+                          style: TextStyle(color: foreground),
+                        ),
+                      ),
+                    );
+                  },
                 ),
-              ),
-            if (a != null)
-              Wrap(
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  if (audio)
-                    IconButton(
-                      tooltip: playing ? 'Pause voice note' : 'Play voice note',
-                      onPressed: busy ? null : () => attachment(true),
-                      icon: Icon(playing ? Icons.pause : Icons.play_arrow),
-                    ),
-                  TextButton.icon(
-                    onPressed: busy ? null : () => attachment(false),
-                    icon: const Icon(Icons.download),
-                    label: Text(busy ? 'Loading…' : a['fileName'] as String),
+              if (m['text'] != null && (m['text'] as String).isNotEmpty)
+                SelectableText(
+                  m['text'] as String,
+                  style: TextStyle(
+                    fontSize: 14.5,
+                    height: 1.48,
+                    color: foreground,
                   ),
+                ),
+              if (a != null)
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    if (audio)
+                      LegacyIconButton(
+                        tooltip: playing
+                            ? 'Pause voice note'
+                            : 'Play voice note',
+                        onPressed: busy
+                            ? null
+                            : () => unawaited(attachment(true)),
+                        icon: playing ? Icons.pause : Icons.play_arrow,
+                        foreground: foreground,
+                      ),
+                    LegacyButton(
+                      onPressed: busy
+                          ? null
+                          : () => unawaited(attachment(false)),
+                      tooltip: 'Download attachment',
+                      foreground: foreground,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.download_outlined, size: 20),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              busy ? 'Loading…' : a['fileName'] as String,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              const SizedBox(height: 5),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Text(
+                    messageTime(m['createdAt']),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: mine ? const Color(0xffdbeafe) : LegacyStyle.muted,
+                    ),
+                  ),
+                  if (mine) ...[
+                    const SizedBox(width: 3),
+                    Semantics(
+                      label: m['read'] == true ? 'Read' : 'Sent',
+                      child: Icon(
+                        m['read'] == true ? Icons.done_all : Icons.done,
+                        size: 16,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
                 ],
               ),
-            const SizedBox(height: 4),
-            Text(
-              '${localTime(m['createdAt'])}${mine ? (m['read'] == true ? '  · Read' : '  · Sent') : ''}',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: mine
-                    ? colors.onPrimaryContainer
-                    : colors.onSurfaceVariant,
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
