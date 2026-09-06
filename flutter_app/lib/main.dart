@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:cross_file/cross_file.dart';
 import 'package:just_audio/just_audio.dart';
 import 'api.dart';
+import 'app_theme.dart';
 import 'chat_store.dart';
 import 'call_service.dart';
 import 'push_service.dart';
@@ -70,16 +71,9 @@ class _ConnectAppState extends State<ConnectApp> {
   Widget build(BuildContext context) => MaterialApp(
     title: 'TMS Connect',
     debugShowCheckedModeBanner: false,
-    theme: ThemeData(
-      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff147d72)),
-      scaffoldBackgroundColor: const Color(0xfff5f8f7),
-      useMaterial3: true,
-      inputDecorationTheme: const InputDecorationTheme(
-        border: OutlineInputBorder(),
-        filled: true,
-        fillColor: Colors.white,
-      ),
-    ),
+    theme: buildAppTheme(Brightness.light),
+    darkTheme: buildAppTheme(Brightness.dark),
+    themeMode: ThemeMode.system,
     home: starting
         ? const Scaffold(body: Center(child: CircularProgressIndicator()))
         : user == null
@@ -220,10 +214,10 @@ class _AuthScreenState extends State<AuthScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Icon(
+                Icon(
                   Icons.forum_rounded,
                   size: 58,
-                  color: Color(0xff147d72),
+                  color: Theme.of(context).colorScheme.primary,
                 ),
                 const SizedBox(height: 16),
                 Text(
@@ -245,7 +239,9 @@ class _AuthScreenState extends State<AuthScreen> {
                     padding: const EdgeInsets.only(bottom: 16),
                     child: Text(
                       error!,
-                      style: const TextStyle(color: Colors.red),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                     ),
                   ),
                 if (register) field('fullName', 'Full name'),
@@ -509,6 +505,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       ? c['peerFullName'] as String
       : c['peerUsername'] as String? ?? '';
   Widget sidebar() {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
     final query = search.text.toLowerCase();
     final rows = panel == 1
         ? chat.contacts
@@ -535,17 +533,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             children: [
               avatar(widget.user['username'] as String),
               const SizedBox(width: 12),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('TMS Connect'),
+                    Text('TMS Connect', style: theme.textTheme.labelLarge),
                     Text(
-                      'Messages',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      ['Messages', 'Contacts', 'Calls'][panel],
+                      style: theme.textTheme.headlineSmall,
                     ),
                   ],
                 ),
@@ -576,36 +571,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             ],
           ),
         ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            TextButton.icon(
-              onPressed: () => setState(() => panel = 0),
-              icon: const Icon(Icons.chat_bubble_outline),
-              label: const Text('Chats'),
-            ),
-            TextButton.icon(
-              onPressed: () => setState(() => panel = 1),
-              icon: const Icon(Icons.person_add_alt),
-              label: const Text('Contacts'),
-            ),
-            TextButton.icon(
-              onPressed: () => setState(() => panel = 2),
-              icon: const Icon(Icons.call),
-              label: const Text('Calls'),
-            ),
-          ],
-        ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: TextField(
+          child: SearchBar(
             controller: search,
             onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.search),
-              hintText: 'Search',
-              isDense: true,
-            ),
+            leading: const Icon(Icons.search),
+            hintText: [
+              'Search chats',
+              'Search contacts',
+              'Search calls',
+            ][panel],
+            elevation: const WidgetStatePropertyAll(0),
           ),
         ),
         if (panel == 0)
@@ -630,6 +607,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             onRefresh: () => run(chat.refresh),
             child: panel == 2
                 ? ListView(
+                    padding: const EdgeInsets.all(8),
+                    physics: const AlwaysScrollableScrollPhysics(),
                     children: [
                       if (chat.calls.isEmpty)
                         const ListTile(title: Text('No calls yet')),
@@ -659,6 +638,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     ],
                   )
                 : ListView.builder(
+                    padding: const EdgeInsets.all(8),
                     physics: const AlwaysScrollableScrollPhysics(),
                     itemCount: rows.isEmpty ? 1 : rows.length,
                     itemBuilder: (_, i) {
@@ -718,8 +698,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             Icons.circle,
             size: 10,
             color: chat.connection == 'Connected'
-                ? Colors.green
-                : Colors.orange,
+                ? colors.primary
+                : colors.error,
           ),
           title: Text(chat.connection),
           trailing: IconButton(
@@ -728,25 +708,48 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             icon: const Icon(Icons.refresh),
           ),
         ),
+        NavigationBar(
+          selectedIndex: panel,
+          onDestinationSelected: (value) => setState(() => panel = value),
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.chat_bubble_outline),
+              selectedIcon: Icon(Icons.chat_bubble),
+              label: 'Chats',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.people_outline),
+              selectedIcon: Icon(Icons.people),
+              label: 'Contacts',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.call_outlined),
+              selectedIcon: Icon(Icons.call),
+              label: 'Calls',
+            ),
+          ],
+        ),
       ],
     );
   }
 
   Widget conversation(bool wide) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
     final c = chat.selected;
     if (c == null) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.forum_outlined, size: 72, color: Color(0xff147d72)),
-            SizedBox(height: 18),
+            Icon(Icons.forum_outlined, size: 72, color: colors.primary),
+            const SizedBox(height: 18),
             Text(
               'Your conversations, connected.',
-              style: TextStyle(fontSize: 24),
+              style: theme.textTheme.headlineSmall,
             ),
-            SizedBox(height: 8),
-            Text('Choose a chat or start one from Contacts.'),
+            const SizedBox(height: 8),
+            const Text('Choose a chat or start one from Contacts.'),
           ],
         ),
       );
@@ -754,7 +757,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     return Column(
       children: [
         Material(
-          color: Colors.white,
+          color: colors.surfaceContainer,
           child: ListTile(
             leading: wide
                 ? avatar(name(c))
@@ -837,12 +840,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         onPressed: chat.loading ? null : () => run(chat.older),
                         child: const Text('Load older messages'),
                       )
-                    : const Padding(
-                        padding: EdgeInsets.all(16),
+                    : Padding(
+                        padding: const EdgeInsets.all(16),
                         child: Text(
                           'Start of conversation',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey),
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: colors.onSurfaceVariant,
+                          ),
                         ),
                       );
               }
@@ -893,7 +898,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   onPressed: () => run(voice),
                   icon: Icon(
                     recording ? Icons.stop_circle : Icons.mic_none,
-                    color: recording ? Colors.red : null,
+                    color: recording ? colors.error : null,
                   ),
                 ),
                 if (!recording)
@@ -914,16 +919,23 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   Widget callOverlay() => Positioned.fill(
     child: Material(
-      color: const Color(0xff102f2d),
+      color: Theme.of(context).colorScheme.inverseSurface,
       child: SafeArea(
         child: Column(
           children: [
             const SizedBox(height: 24),
             Text(
               call.peer ?? '',
-              style: const TextStyle(color: Colors.white, fontSize: 30),
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onInverseSurface,
+              ),
             ),
-            Text(call.status, style: const TextStyle(color: Colors.white70)),
+            Text(
+              call.status,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onInverseSurface,
+              ),
+            ),
             Expanded(
               child: call.video && !call.incoming
                   ? Stack(
@@ -944,10 +956,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         ),
                       ],
                     )
-                  : const Icon(
+                  : Icon(
                       Icons.account_circle,
                       size: 140,
-                      color: Colors.white54,
+                      color: Theme.of(context).colorScheme.onInverseSurface,
                     ),
             ),
             Wrap(
@@ -985,7 +997,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     ),
                 ],
                 FilledButton.icon(
-                  style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.error,
+                    foregroundColor: Theme.of(context).colorScheme.onError,
+                  ),
                   onPressed: () => run(call.end),
                   icon: const Icon(Icons.call_end),
                   label: Text(call.incoming ? 'Decline' : 'End call'),
@@ -1130,6 +1145,8 @@ class _MessageBubbleState extends State<MessageBubble> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
     final m = widget.message,
         mine = m['mine'] == true,
         a = m['attachment'] as Map?;
@@ -1141,7 +1158,7 @@ class _MessageBubbleState extends State<MessageBubble> {
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: mine ? const Color(0xffd6eee6) : Colors.white,
+          color: mine ? colors.primaryContainer : colors.surfaceContainerHigh,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
@@ -1178,7 +1195,12 @@ class _MessageBubbleState extends State<MessageBubble> {
                 },
               ),
             if (m['text'] != null && (m['text'] as String).isNotEmpty)
-              SelectableText(m['text'] as String),
+              SelectableText(
+                m['text'] as String,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: mine ? colors.onPrimaryContainer : colors.onSurface,
+                ),
+              ),
             if (a != null)
               Wrap(
                 crossAxisAlignment: WrapCrossAlignment.center,
@@ -1199,7 +1221,11 @@ class _MessageBubbleState extends State<MessageBubble> {
             const SizedBox(height: 4),
             Text(
               '${localTime(m['createdAt'])}${mine ? (m['read'] == true ? '  · Read' : '  · Sent') : ''}',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: mine
+                    ? colors.onPrimaryContainer
+                    : colors.onSurfaceVariant,
+              ),
             ),
           ],
         ),
