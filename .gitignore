@@ -1,0 +1,13 @@
+backend/bin/
+backend/obj/
+backend/storage/
+backend/firebase.json
+backend/appsettings.Local.json
+**/google-services.json
+**/GoogleService-Info.plist
+**/.dart_tool/
+**/build/
+**/local.properties
+**/*.jks
+**/key.properties
+
