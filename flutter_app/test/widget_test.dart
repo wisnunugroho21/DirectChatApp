@@ -101,7 +101,7 @@ Future<void> capture(WidgetTester tester, String name) async {
   final boundary = tester.renderObject<RenderRepaintBoundary>(
     find.byKey(const ValueKey('capture')),
   );
-  debugDisableShadows = false;
+
   boundary.markNeedsPaint();
   await tester.pump();
   await tester.runAsync(() async {
@@ -113,7 +113,6 @@ Future<void> capture(WidgetTester tester, String name) async {
     ).writeAsBytes(bytes!.buffer.asUint8List());
     image.dispose();
   });
-  debugDisableShadows = true;
 }
 
 void main() {
@@ -123,7 +122,7 @@ void main() {
     for (final font in [
       ('Roboto', const String.fromEnvironment('UI_FONT')),
       ('Segoe UI', const String.fromEnvironment('UI_AUTH_FONT')),
-      ('MaterialIcons', const String.fromEnvironment('UI_ICON_FONT')),
+      ('LegacySymbols', 'assets/fonts/LegacySymbols.ttf'),
     ]) {
       if (font.$2.isEmpty) continue;
       final loader = FontLoader(font.$1)
@@ -132,6 +131,20 @@ void main() {
             font.$2,
           ).readAsBytes().then((bytes) => ByteData.sublistView(bytes)),
         );
+      if (font.$1 == 'Segoe UI') {
+        for (final path in [
+          const String.fromEnvironment('UI_BOLD_FONT'),
+          const String.fromEnvironment('UI_SEMIBOLD_FONT'),
+        ]) {
+          if (path.isNotEmpty) {
+            loader.addFont(
+              File(
+                path,
+              ).readAsBytes().then((bytes) => ByteData.sublistView(bytes)),
+            );
+          }
+        }
+      }
       await loader.load();
     }
   });
@@ -154,8 +167,11 @@ void main() {
     const Size(1280, 800),
   ]) {
     testWidgets('Legacy auth layout and validation at $size', (tester) async {
-      await tester.binding.setSurfaceSize(size);
-      addTearDown(() => tester.binding.setSurfaceSize(null));
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      if (const bool.fromEnvironment('CAPTURE_UI')) debugDisableShadows = false;
       final api = Api();
       addTearDown(api.dispose);
       await tester.pumpWidget(
@@ -188,13 +204,17 @@ void main() {
       await tester.tap(find.text('Register'));
       await tester.pumpAndSettle();
       expect(find.text('Required'), findsNWidgets(5));
+      debugDisableShadows = true;
       expect(tester.takeException(), isNull);
     });
     testWidgets('Legacy chat navigation, composer and call UI at $size', (
       tester,
     ) async {
-      await tester.binding.setSurfaceSize(size);
-      addTearDown(() => tester.binding.setSurfaceSize(null));
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      if (const bool.fromEnvironment('CAPTURE_UI')) debugDisableShadows = false;
       final api = OfflineApi();
       addTearDown(api.dispose);
       final store = PreviewStore(api);
@@ -249,6 +269,17 @@ void main() {
       await tester.tap(find.byTooltip('Send message'));
       await tester.pumpAndSettle();
       expect(find.text('Ready to go'), findsOneWidget);
+      expect(
+        tester
+            .widget<MessageBubble>(
+              find.byWidgetPredicate(
+                (widget) =>
+                    widget is MessageBubble && widget.message['id'] == '3',
+              ),
+            )
+            .firstInRun,
+        isFalse,
+      );
       if (size.width <= 900) {
         await tester.tap(find.byTooltip('Back to conversations'));
         await tester.pumpAndSettle();
@@ -271,6 +302,7 @@ void main() {
       await tester.pumpAndSettle();
       await capture(tester, 'incoming-call-${size.width.toInt()}');
       expect(find.byTooltip('Accept call'), findsOneWidget);
+      debugDisableShadows = true;
       expect(tester.takeException(), isNull);
       call.peer = null;
       await tester.pumpWidget(const SizedBox());

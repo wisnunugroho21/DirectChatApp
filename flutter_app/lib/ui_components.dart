@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'app_theme.dart';
+import 'legacy_icons.dart';
 
 /// A keyboard-accessible HTML-style button, without ink or Material elevation.
 class LegacyButton extends StatefulWidget {
@@ -9,6 +10,7 @@ class LegacyButton extends StatefulWidget {
   final VoidCallback? onPressed;
   final String? tooltip;
   final Color? background, foreground;
+  final Color? hoverBackground;
   final double radius;
   final EdgeInsets padding;
   final double? width, height;
@@ -20,6 +22,7 @@ class LegacyButton extends StatefulWidget {
     this.tooltip,
     this.background,
     this.foreground,
+    this.hoverBackground,
     this.radius = 13,
     this.padding = const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
     this.width,
@@ -74,12 +77,21 @@ class _LegacyButtonState extends State<LegacyButton> {
               decoration: BoxDecoration(
                 color: active
                     ? (widget.background == null
-                          ? LegacyStyle.soft
+                          ? widget.hoverBackground ?? LegacyStyle.soft
                           : widget.background == LegacyStyle.accent
                           ? LegacyStyle.accentDark
                           : widget.background)
                     : widget.background,
                 borderRadius: BorderRadius.circular(widget.radius),
+                boxShadow: widget.background == LegacyStyle.accent
+                    ? const [
+                        BoxShadow(
+                          color: Color(0x352563eb),
+                          blurRadius: 18,
+                          offset: Offset(0, 7),
+                        ),
+                      ]
+                    : null,
                 border: focused
                     ? Border.all(color: const Color(0xff93c5fd), width: 2)
                     : widget.border,
@@ -88,7 +100,9 @@ class _LegacyButtonState extends State<LegacyButton> {
                 style: TextStyle(
                   color: foreground,
                   fontSize: 13.5,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: widget.background == LegacyStyle.accent
+                      ? FontWeight.w700
+                      : FontWeight.w600,
                 ),
                 child: IconTheme.merge(
                   data: IconThemeData(color: foreground, size: 24),
@@ -154,7 +168,7 @@ class LegacyMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Builder(
     builder: (buttonContext) => LegacyIconButton(
-      icon: Icons.more_vert,
+      icon: LegacyIcons.more_vert,
       tooltip: tooltip,
       onPressed: () {
         final box = buttonContext.findRenderObject()! as RenderBox;
@@ -230,12 +244,16 @@ class LegacyMenu extends StatelessWidget {
 class ProfileAvatar extends StatelessWidget {
   final String name;
   final String? initials;
+  final String? colorKey;
+  final bool profile;
   final double radius;
   final bool? online;
   const ProfileAvatar({
     super.key,
     required this.name,
     this.initials,
+    this.colorKey,
+    this.profile = false,
     this.radius = 24.5,
     this.online,
   });
@@ -249,8 +267,20 @@ class ProfileAvatar extends StatelessWidget {
     final initials = parts.isEmpty
         ? '?'
         : parts.length > 1
-        ? '${parts.first.characters.first}${parts.last.characters.first}'
+        ? '${parts.first.characters.first}${parts[1].characters.first}'
         : parts.first.characters.take(2).toString();
+    const palette = [
+      [Color(0xff2563eb), Color(0xff60a5fa)],
+      [Color(0xff1d4ed8), Color(0xff3b82f6)],
+      [Color(0xff0369a1), Color(0xff38bdf8)],
+      [Color(0xff4338ca), Color(0xff818cf8)],
+      [Color(0xff0284c7), Color(0xff7dd3fc)],
+      [Color(0xff1e40af), Color(0xff93c5fd)],
+    ];
+    final hash = (colorKey ?? '').codeUnits.fold<int>(
+      0,
+      (hash, code) => (hash * 31 + code) & 0xffffffff,
+    );
     return SizedBox(
       width: radius * 2,
       height: radius * 2,
@@ -259,14 +289,17 @@ class ProfileAvatar extends StatelessWidget {
         children: [
           Container(
             alignment: Alignment.center,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               shape: BoxShape.circle,
+              border: profile
+                  ? Border.all(color: Colors.white, width: 3)
+                  : null,
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [LegacyStyle.accent, Color(0xff60a5fa)],
+                colors: palette[profile ? 0 : hash % palette.length],
               ),
-              boxShadow: [
+              boxShadow: const [
                 BoxShadow(
                   color: Color(0x20173a65),
                   blurRadius: 14,
@@ -278,7 +311,7 @@ class ProfileAvatar extends StatelessWidget {
               (this.initials ?? initials).toUpperCase(),
               style: TextStyle(
                 color: Colors.white,
-                fontSize: radius * .69,
+                fontSize: profile ? 14 : radius * .69,
                 fontWeight: FontWeight.w700,
                 letterSpacing: .5,
               ),
@@ -468,6 +501,19 @@ class LegacyChatBackground extends StatelessWidget {
 class _WallpaperPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
+    final glowCenter = Offset(size.width * .88, size.height * .04);
+    final glowRadius =
+        math.sqrt(
+          math.pow(size.width * .88, 2) + math.pow(size.height * .96, 2),
+        ) *
+        .28;
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()
+        ..shader = RadialGradient(
+          colors: const [Color(0xffdbeafe), Color(0x00dbeafe)],
+        ).createShader(Rect.fromCircle(center: glowCenter, radius: glowRadius)),
+    );
     final paint = Paint()
       ..color = const Color(0x0c2563eb)
       ..style = PaintingStyle.stroke
@@ -551,147 +597,292 @@ class LegacyWelcome extends StatelessWidget {
   final VoidCallback onNewChat;
   const LegacyWelcome({super.key, required this.onNewChat});
   @override
-  Widget build(BuildContext context) => Center(
-    child: SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 42),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 496),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 48),
-            SizedBox(
-              width: 132,
-              height: 132,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  for (final inset in [25.0, 48.0])
-                    Positioned(
-                      left: -inset,
-                      right: -inset,
-                      top: -inset,
-                      bottom: -inset,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: const Color(0x75cfe0f8)),
-                        ),
-                      ),
-                    ),
-                  Transform.rotate(
-                    angle: -.07,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Colors.white, Color(0xffe6f0ff)],
-                        ),
-                        border: Border.all(color: const Color(0xffcfe0f8)),
-                        borderRadius: BorderRadius.circular(38),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x24204e85),
-                            blurRadius: 60,
-                            offset: Offset(0, 22),
-                          ),
-                        ],
-                      ),
-                      child: const Center(
-                        child: Icon(
-                          Icons.local_shipping_outlined,
-                          size: 58,
-                          color: LegacyStyle.accent,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    top: -8,
-                    right: -9,
-                    child: Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: const Color(0xff0f766e),
-                        border: Border.all(
-                          color: const Color(0xffeff6ff),
-                          width: 4,
-                        ),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: const Icon(
-                        Icons.chat_bubble_outline,
-                        size: 21,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, bounds) {
+      final narrow = MediaQuery.sizeOf(context).width <= 420;
+      final visualSize = narrow ? 108.0 : 132.0;
+      return SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: bounds.maxHeight),
+          child: Center(
+            child: Container(
+              width: 560,
+              padding: EdgeInsets.symmetric(
+                horizontal: narrow ? 12 : 32,
+                vertical: narrow ? 28 : 42,
               ),
-            ),
-            const SizedBox(height: 50),
-            const Text(
-              'TMS CONNECT',
-              style: TextStyle(
-                color: LegacyStyle.accent,
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.76,
-              ),
-            ),
-            const SizedBox(height: 9),
-            const Text(
-              'Keep every trip connected',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 38,
-                height: 1.15,
-                letterSpacing: -1.33,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Message dispatchers and drivers, share documents, and start secure calls from one place.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 15,
-                height: 1.65,
-                color: LegacyStyle.muted,
-              ),
-            ),
-            const SizedBox(height: 24),
-            LegacyButton(
-              onPressed: onNewChat,
-              background: LegacyStyle.accent,
-              height: 48,
-              child: const Row(
+              child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.add_comment_outlined, size: 20),
-                  SizedBox(width: 8),
-                  Text('Start a conversation'),
+                  SizedBox(
+                    width: visualSize,
+                    height: visualSize,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Positioned.fill(
+                          left: -48,
+                          right: -48,
+                          top: -48,
+                          bottom: -48,
+                          child: CustomPaint(painter: _WelcomeRings()),
+                        ),
+                        Transform.rotate(
+                          angle: -math.pi / 45,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [Colors.white, Color(0xffe6f0ff)],
+                              ),
+                              border: Border.all(
+                                color: const Color(0xffcfe0f8),
+                              ),
+                              borderRadius: BorderRadius.circular(
+                                narrow ? 32 : 38,
+                              ),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Color(0x24204e85),
+                                  blurRadius: 60,
+                                  offset: Offset(0, 22),
+                                ),
+                              ],
+                            ),
+                            child: const Center(
+                              child: Icon(
+                                LegacyIcons.local_shipping,
+                                size: 24,
+                                color: LegacyStyle.accent,
+                              ),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: -8,
+                          right: -9,
+                          child: Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: const Color(0xff0f766e),
+                              border: Border.all(
+                                color: const Color(0xffeff6ff),
+                                width: 4,
+                              ),
+                              borderRadius: BorderRadius.circular(14),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Color(0x350f766e),
+                                  blurRadius: 18,
+                                  offset: Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              LegacyIcons.chat,
+                              size: 24,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: narrow ? 42 : 50),
+                  const Text(
+                    'TMS CONNECT',
+                    style: TextStyle(
+                      color: LegacyStyle.accent,
+                      fontSize: 11,
+                      height: 1.4,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.76,
+                    ),
+                  ),
+                  const SizedBox(height: 9),
+                  Text(
+                    'Keep every trip connected',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: (MediaQuery.sizeOf(context).width * .04).clamp(
+                        27,
+                        38,
+                      ),
+                      height: 1.15,
+                      letterSpacing: -1.33,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: 470),
+                    child: Text(
+                      'Message dispatchers and drivers, share documents, and start secure calls from one place.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 15,
+                        height: 1.65,
+                        color: LegacyStyle.muted,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  LegacyButton(
+                    onPressed: onNewChat,
+                    background: LegacyStyle.accent,
+                    height: 48,
+                    padding: const EdgeInsets.symmetric(horizontal: 22),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(LegacyIcons.add_comment, size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Start a conversation',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        LegacyIcons.lock,
+                        size: 15,
+                        color: Color(0xff0f766e),
+                      ),
+                      SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          'Private and secure communication',
+                          style: TextStyle(
+                            color: Color(0xff7890a8),
+                            fontSize: 11.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
-            const SizedBox(height: 20),
-            const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.lock_outline, size: 15, color: Color(0xff0f766e)),
-                SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    'Private and secure communication',
-                    style: TextStyle(color: Color(0xff7890a8), fontSize: 11.5),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-          ],
+          ),
         ),
+      );
+    },
+  );
+}
+
+class _WelcomeRings extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = const Color(0x75cfe0f8);
+    canvas.drawCircle(center, size.width / 2 - 23, paint);
+    paint.color = const Color(0x5cbfd4f3);
+    final rect = Offset.zero & size;
+    for (var a = 0.0; a < math.pi * 2; a += .07) {
+      canvas.drawArc(rect, a, .035, false, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_WelcomeRings oldDelegate) => false;
+}
+
+class LegacyBubbleTail extends CustomPainter {
+  final bool mine, first;
+  const LegacyBubbleTail({required this.mine, required this.first});
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (!first) return;
+    final path = Path();
+    if (mine) {
+      path.moveTo(size.width - 5, 0);
+      path.lineTo(size.width + 7, 0);
+      path.lineTo(size.width - 1, 8);
+    } else {
+      path.moveTo(5, 0);
+      path.lineTo(-7, 0);
+      path.lineTo(1, 8);
+    }
+    path.close();
+    canvas.drawPath(
+      path,
+      Paint()..color = mine ? LegacyStyle.accent : Colors.white,
+    );
+  }
+
+  @override
+  bool shouldRepaint(LegacyBubbleTail oldDelegate) =>
+      oldDelegate.mine != mine || oldDelegate.first != first;
+}
+
+class LegacySelectionMarker extends CustomPainter {
+  const LegacySelectionMarker();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()
+      ..moveTo(16, 1.5)
+      ..quadraticBezierTo(1.5, 1.5, 1.5, 16)
+      ..lineTo(1.5, size.height - 16)
+      ..quadraticBezierTo(1.5, size.height - 1.5, 16, size.height - 1.5);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = LegacyStyle.accent
+        ..strokeWidth = 3
+        ..style = PaintingStyle.stroke,
+    );
+  }
+
+  @override
+  bool shouldRepaint(LegacySelectionMarker oldDelegate) => false;
+}
+
+/// Legacy's white search/composer fields, including their CSS focus halo.
+class LegacyFieldSurface extends StatefulWidget {
+  final Widget child;
+  final double radius;
+  final bool enabled;
+  const LegacyFieldSurface({
+    super.key,
+    required this.child,
+    this.radius = 14,
+    this.enabled = true,
+  });
+  @override
+  State<LegacyFieldSurface> createState() => _LegacyFieldSurfaceState();
+}
+
+class _LegacyFieldSurfaceState extends State<LegacyFieldSurface> {
+  bool focused = false;
+  @override
+  Widget build(BuildContext context) => Focus(
+    canRequestFocus: false,
+    onFocusChange: (value) => setState(() => focused = value),
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(widget.radius),
+        boxShadow: !widget.enabled
+            ? null
+            : [
+                if (focused)
+                  const BoxShadow(color: Color(0xffdbeafe), spreadRadius: 3),
+                ...LegacyStyle.shadow,
+              ],
       ),
+      child: widget.child,
     ),
   );
 }

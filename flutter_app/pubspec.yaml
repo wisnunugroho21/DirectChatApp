@@ -66,10 +66,15 @@ dev_dependencies:
 # The following section is specific to Flutter packages.
 flutter:
 
-  # The following line ensures that the Material Icons font is
-  # included with your application, so that you can use the icons in
-  # the material Icons class.
+  # Flutter's built-in text-selection menus still need this fallback font.
+  # Application controls use LegacySymbols below, with custom legacy styling.
   uses-material-design: true
+  assets:
+    - assets/fonts/LICENSE.txt
+  fonts:
+    - family: LegacySymbols
+      fonts:
+        - asset: assets/fonts/LegacySymbols.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

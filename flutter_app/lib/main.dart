@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:record/record.dart';
@@ -10,6 +11,7 @@ import 'package:cross_file/cross_file.dart';
 import 'package:just_audio/just_audio.dart';
 import 'api.dart';
 import 'app_theme.dart';
+import 'legacy_icons.dart';
 import 'ui_components.dart';
 import 'chat_store.dart';
 import 'call_service.dart';
@@ -17,6 +19,11 @@ import 'push_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  LicenseRegistry.addLicense(() async* {
+    yield LicenseEntryWithLineBreaks([
+      'Material Symbols Outlined',
+    ], await rootBundle.loadString('assets/fonts/LICENSE.txt'));
+  });
   runApp(const ConnectApp());
 }
 
@@ -669,7 +676,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             builder: (context, bounds) => Container(
               height: LegacyStyle.headerHeight,
               padding: EdgeInsets.symmetric(
-                horizontal: bounds.maxWidth <= 420 ? 10 : 16,
+                horizontal: MediaQuery.sizeOf(context).width <= 420 ? 10 : 16,
               ),
               decoration: const BoxDecoration(
                 color: Color(0xebffffff),
@@ -681,9 +688,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     ProfileAvatar(
                       name: widget.user['username'] as String,
                       radius: 22,
+                      profile: true,
                     ),
                     const SizedBox(width: 8),
-                    if (bounds.maxWidth > 360)
+                    if (MediaQuery.sizeOf(context).width > 360)
                       const Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -712,13 +720,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       ),
                     const Spacer(),
                     LegacyIconButton(
-                      icon: Icons.phone_callback_outlined,
+                      icon: LegacyIcons.phone_callback,
                       tooltip: 'Call History',
                       onPressed: () => changePanel(2),
                     ),
                     const SizedBox(width: 8),
                     LegacyIconButton(
-                      icon: Icons.add_comment_outlined,
+                      icon: LegacyIcons.chat_add_on,
                       tooltip: 'New chat',
                       primary: true,
                       onPressed: () => changePanel(1),
@@ -730,7 +738,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     ),
                   ] else ...[
                     LegacyIconButton(
-                      icon: Icons.west,
+                      icon: LegacyIcons.arrow_left_alt,
                       tooltip: 'Back to chats',
                       onPressed: () => changePanel(0),
                     ),
@@ -764,7 +772,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     ),
                     if (panel == 2)
                       LegacyIconButton(
-                        icon: Icons.refresh,
+                        icon: LegacyIcons.refresh,
                         tooltip: 'Refresh call history',
                         onPressed: () => unawaited(run(chat.refresh)),
                       )
@@ -783,30 +791,32 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
               child: SizedBox(
                 height: 46,
-                child: TextField(
-                  controller: search,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w400,
-                  ),
-                  onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(
-                    hintText: panel == 1
-                        ? 'Search name or number'
-                        : 'Search or start a new chat',
-                    prefixIcon: const Icon(
-                      Icons.search,
-                      size: 21,
-                      color: LegacyStyle.muted,
+                child: LegacyFieldSurface(
+                  child: TextField(
+                    controller: search,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
                     ),
-                    suffixIcon: query.isEmpty
-                        ? null
-                        : LegacyIconButton(
-                            icon: Icons.close,
-                            tooltip: 'Clear search',
-                            size: 28,
-                            onPressed: () => setState(search.clear),
-                          ),
+                    onChanged: (_) => setState(() {}),
+                    decoration: InputDecoration(
+                      hintText: panel == 1
+                          ? 'Search name or number'
+                          : 'Search or start a new chat',
+                      prefixIcon: const Icon(
+                        LegacyIcons.search,
+                        size: 21,
+                        color: LegacyStyle.muted,
+                      ),
+                      suffixIcon: query.isEmpty
+                          ? null
+                          : LegacyIconButton(
+                              icon: LegacyIcons.close,
+                              tooltip: 'Clear search',
+                              size: 28,
+                              onPressed: () => setState(search.clear),
+                            ),
+                    ),
                   ),
                 ),
               ),
@@ -881,8 +891,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                               ),
                               Icon(
                                 c['callType'] == 'Video'
-                                    ? Icons.videocam_outlined
-                                    : Icons.call_outlined,
+                                    ? LegacyIcons.videocam
+                                    : LegacyIcons.call,
                                 size: 20,
                                 color: LegacyStyle.accent,
                               ),
@@ -923,8 +933,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                             unread;
                         return EmptyState(
                           icon: filtered
-                              ? Icons.search_off
-                              : Icons.forum_outlined,
+                              ? LegacyIcons.search_off
+                              : LegacyIcons.forum,
                           title: filtered
                               ? 'No conversations found'
                               : 'Your inbox is ready',
@@ -956,6 +966,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         selected: panel == 0 && c['id'] == chat.selected?['id'],
                         leading: ProfileAvatar(
                           name: label,
+                          colorKey:
+                              (panel == 1 ? c['username'] : c['peerUsername'])
+                                  as String?,
                           online:
                               (panel == 1 ? c['status'] : c['peerStatus']) ==
                               'Online',
@@ -1026,7 +1039,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               color: LegacyStyle.soft,
               child: Row(
                 children: [
-                  const Icon(Icons.circle, size: 7, color: LegacyStyle.accent),
+                  const Icon(
+                    LegacyIcons.circle,
+                    size: 7,
+                    color: LegacyStyle.accent,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -1038,7 +1055,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     ),
                   ),
                   LegacyIconButton(
-                    icon: Icons.refresh,
+                    icon: LegacyIcons.refresh,
                     tooltip: 'Reconnect and refresh',
                     size: 32,
                     onPressed: () => unawaited(run(chat.reconnect)),
@@ -1058,56 +1075,66 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     Widget? trailing,
     bool selected = false,
     required VoidCallback onTap,
-  }) => Container(
-    margin: const EdgeInsets.symmetric(vertical: 2),
-    decoration: selected
-        ? BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xffedf4ff), Color(0xfff8fbff)],
+  }) => CustomPaint(
+    foregroundPainter: selected ? const LegacySelectionMarker() : null,
+    child: Container(
+      margin: const EdgeInsets.symmetric(vertical: 2),
+      decoration: selected
+          ? BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xffedf4ff), Color(0xfff8fbff)],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xffccddfb)),
+              boxShadow: LegacyStyle.shadow,
+            )
+          : BoxDecoration(
+              border: Border.all(color: Colors.transparent),
+              borderRadius: BorderRadius.circular(16),
             ),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xffccddfb)),
-            boxShadow: LegacyStyle.shadow,
-          )
-        : null,
-    child: LegacyButton(
-      onPressed: onTap,
-      foreground: LegacyStyle.text,
-      radius: 16,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
-      child: Row(
-        children: [
-          leading,
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 15.5,
-                    fontWeight: FontWeight.w600,
-                  ),
+      child: LegacyButton(
+        onPressed: onTap,
+        hoverBackground: selected ? Colors.transparent : Colors.white,
+        foreground: LegacyStyle.text,
+        radius: 16,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+        child: Row(
+          children: [
+            leading,
+            const SizedBox(width: 14),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 5),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w400,
+                        color: LegacyStyle.muted,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w400,
-                    color: LegacyStyle.muted,
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
-          if (trailing != null) ...[const SizedBox(width: 8), trailing],
-        ],
+            if (trailing != null) ...[const SizedBox(width: 8), trailing],
+          ],
+        ),
       ),
     ),
   );
@@ -1197,7 +1224,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               children: [
                 if (!wide)
                   LegacyIconButton(
-                    icon: Icons.west,
+                    icon: LegacyIcons.arrow_left_alt,
                     tooltip: 'Back to conversations',
                     size: 38,
                     onPressed: () => unawaited(
@@ -1210,6 +1237,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 ProfileAvatar(
                   name: c == null ? 'TMS' : name(c),
                   initials: c == null ? 'TMS' : null,
+                  colorKey: c?['peerUsername'] as String?,
                   radius: 22,
                 ),
                 const SizedBox(width: 14),
@@ -1231,6 +1259,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       Text(
                         c == null
                             ? 'Choose a conversation to get started'
+                            : c['peerStatus'] == 'Online'
+                            ? '● Online now'
                             : c['peerStatus'] as String? ?? 'Offline',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -1244,8 +1274,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     ],
                   ),
                 ),
+                SizedBox(width: wide ? 14 : 8),
                 LegacyIconButton(
-                  icon: Icons.call_outlined,
+                  icon: LegacyIcons.call,
                   tooltip: 'Voice call',
                   size: wide ? 42 : 38,
                   onPressed: c == null || recording
@@ -1257,8 +1288,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           ),
                         ),
                 ),
+                SizedBox(width: wide ? 14 : 8),
                 LegacyIconButton(
-                  icon: Icons.videocam_outlined,
+                  icon: LegacyIcons.videocam,
                   tooltip: 'Video call',
                   size: wide ? 42 : 38,
                   onPressed: c == null || recording
@@ -1269,6 +1301,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           ),
                         ),
                 ),
+                SizedBox(width: wide ? 14 : 8),
                 LegacyMenu(
                   tooltip: 'Chat options',
                   items: [
@@ -1321,6 +1354,37 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           if (index == chat.messages.length) {
                             return Column(
                               children: [
+                                Container(
+                                  margin: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 13,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xd9ffffff),
+                                    border: Border.all(
+                                      color: const Color(0xffdfe8f2),
+                                    ),
+                                    borderRadius: BorderRadius.circular(999),
+                                    boxShadow: LegacyStyle.shadow,
+                                  ),
+                                  child: Text(
+                                    chat.messages.isEmpty
+                                        ? 'TODAY'
+                                        : conversationDate(
+                                            chat.messages.first['createdAt'],
+                                          ),
+                                    style: const TextStyle(
+                                      fontSize: 12.2,
+                                      letterSpacing: .3,
+                                      color: LegacyStyle.muted,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
                                 if (chat.hasOlder && chat.messages.isNotEmpty)
                                   LegacyButton(
                                     onPressed: chat.loading
@@ -1348,7 +1412,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Icon(
-                                        Icons.lock_outline,
+                                        LegacyIcons.lock,
                                         size: 15,
                                         color: LegacyStyle.accentDark,
                                       ),
@@ -1358,6 +1422,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                           'Messages are private and secure.',
                                           style: TextStyle(
                                             fontSize: 12.2,
+                                            height: 1.5,
+                                            fontWeight: FontWeight.w700,
                                             color: LegacyStyle.accentDark,
                                           ),
                                         ),
@@ -1365,6 +1431,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                     ],
                                   ),
                                 ),
+                                const SizedBox(height: 12),
                                 if (chat.messages.isEmpty)
                                   Padding(
                                     padding: const EdgeInsets.fromLTRB(
@@ -1377,6 +1444,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                       children: [
                                         ProfileAvatar(
                                           name: name(c),
+                                          colorKey:
+                                              c['peerUsername'] as String?,
                                           radius: 36,
                                         ),
                                         const SizedBox(height: 13),
@@ -1407,6 +1476,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           return MessageBubble(
                             key: ValueKey(m['id']),
                             message: m,
+                            firstInRun:
+                                index == chat.messages.length - 1 ||
+                                chat.messages[chat.messages.length -
+                                        2 -
+                                        index]['mine'] !=
+                                    m['mine'],
                             api: widget.api,
                             onError: notice,
                           );
@@ -1447,7 +1522,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     child: Row(
                       children: [
                         const Icon(
-                          Icons.circle,
+                          LegacyIcons.circle,
                           size: 10,
                           color: Color(0xffef4444),
                         ),
@@ -1459,12 +1534,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           ),
                         ),
                         LegacyIconButton(
-                          icon: Icons.delete_outline,
+                          icon: LegacyIcons.delete,
                           tooltip: 'Cancel voice note',
                           onPressed: () => unawaited(run(cancelVoice)),
                         ),
                         LegacyIconButton(
-                          icon: Icons.send_outlined,
+                          icon: LegacyIcons.send,
                           tooltip: 'Send voice note',
                           primary: true,
                           onPressed: () => unawaited(run(voice)),
@@ -1475,7 +1550,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 : Row(
                     children: [
                       LegacyIconButton(
-                        icon: Icons.attach_file,
+                        icon: LegacyIcons.attach_file,
                         tooltip: 'Attach file',
                         size: wide ? 42 : 40,
                         onPressed: enabled
@@ -1484,26 +1559,62 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       ),
                       SizedBox(width: wide ? 8 : 4),
                       Expanded(
-                        child: TextField(
-                          controller: composer,
+                        child: LegacyFieldSurface(
+                          radius: 16,
                           enabled: enabled,
-                          minLines: 1,
-                          maxLines: 4,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w400,
-                          ),
-                          textInputAction: TextInputAction.send,
-                          onSubmitted: (_) => send(),
-                          onChanged: (_) => setState(() {}),
-                          decoration: InputDecoration(
-                            hintText: 'Type a message',
-                            fillColor: c == null
-                                ? const Color(0xfff3f6fa)
-                                : Colors.white,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 14,
+                          child: TextField(
+                            controller: composer,
+                            enabled: enabled,
+                            minLines: 1,
+                            maxLines: 4,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w400,
+                            ),
+                            textInputAction: TextInputAction.send,
+                            onSubmitted: (_) => send(),
+                            onChanged: (_) => setState(() {}),
+                            decoration: InputDecoration(
+                              hintText: 'Type a message',
+                              border: const OutlineInputBorder(
+                                borderRadius: BorderRadius.all(
+                                  Radius.circular(16),
+                                ),
+                                borderSide: BorderSide(
+                                  color: LegacyStyle.border,
+                                ),
+                              ),
+                              enabledBorder: const OutlineInputBorder(
+                                borderRadius: BorderRadius.all(
+                                  Radius.circular(16),
+                                ),
+                                borderSide: BorderSide(
+                                  color: LegacyStyle.border,
+                                ),
+                              ),
+                              disabledBorder: const OutlineInputBorder(
+                                borderRadius: BorderRadius.all(
+                                  Radius.circular(16),
+                                ),
+                                borderSide: BorderSide(
+                                  color: LegacyStyle.border,
+                                ),
+                              ),
+                              focusedBorder: const OutlineInputBorder(
+                                borderRadius: BorderRadius.all(
+                                  Radius.circular(16),
+                                ),
+                                borderSide: BorderSide(
+                                  color: Color(0xff8db5f5),
+                                ),
+                              ),
+                              fillColor: c == null
+                                  ? const Color(0xfff3f6fa)
+                                  : Colors.white,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 14,
+                              ),
                             ),
                           ),
                         ),
@@ -1511,7 +1622,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       SizedBox(width: wide ? 8 : 4),
                       if (composer.text.isEmpty)
                         LegacyIconButton(
-                          icon: Icons.mic_none,
+                          icon: LegacyIcons.mic,
                           tooltip: 'Record voice message',
                           size: wide ? 42 : 40,
                           onPressed: enabled
@@ -1520,7 +1631,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         )
                       else
                         LegacyIconButton(
-                          icon: Icons.send_outlined,
+                          icon: LegacyIcons.send,
                           tooltip: 'Send message',
                           primary: true,
                           size: wide ? 42 : 40,
@@ -1534,60 +1645,62 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget callControls({bool dark = false}) => Wrap(
-    alignment: WrapAlignment.center,
-    spacing: 12,
-    runSpacing: 12,
-    children: [
-      LegacyIconButton(
-        icon: call.muted ? Icons.mic_off_outlined : Icons.mic_none,
-        tooltip: call.muted ? 'Unmute microphone' : 'Mute microphone',
-        onPressed: call.mute,
-        size: 54,
-        radius: 27,
-        background: call.muted
-            ? LegacyStyle.soft
-            : dark
-            ? const Color(0x33ffffff)
-            : Colors.white,
-        foreground: dark ? Colors.white : LegacyStyle.muted,
-      ),
-      if (call.video)
+  Widget callControls({bool dark = false}) {
+    final nativeSpeaker =
+        !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS);
+    final background = dark ? const Color(0x33ffffff) : const Color(0xffdbeafe);
+    final foreground = dark ? Colors.white : LegacyStyle.text;
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 13,
+      runSpacing: 12,
+      children: [
         LegacyIconButton(
-          icon: call.camera
-              ? Icons.videocam_outlined
-              : Icons.videocam_off_outlined,
+          icon: call.muted ? LegacyIcons.mic_off : LegacyIcons.mic,
+          tooltip: call.muted ? 'Unmute microphone' : 'Mute microphone',
+          onPressed: call.mute,
+          size: 52,
+          radius: 26,
+          background: call.muted ? LegacyStyle.accent : background,
+          foreground: call.muted ? Colors.white : foreground,
+        ),
+        LegacyIconButton(
+          icon: call.video && call.camera
+              ? LegacyIcons.videocam
+              : LegacyIcons.videocam_off,
           tooltip: 'Toggle camera',
-          onPressed: call.toggleCamera,
-          size: 54,
-          radius: 27,
-          background: dark ? const Color(0x33ffffff) : Colors.white,
-          foreground: dark ? Colors.white : LegacyStyle.muted,
+          onPressed: call.video ? call.toggleCamera : null,
+          size: 52,
+          radius: 26,
+          background: background,
+          foreground: foreground,
         ),
-      if (!kIsWeb &&
-          (defaultTargetPlatform == TargetPlatform.android ||
-              defaultTargetPlatform == TargetPlatform.iOS))
         LegacyIconButton(
-          icon: call.speaker
-              ? Icons.volume_up_outlined
-              : Icons.hearing_outlined,
+          icon: LegacyIcons.volume_up,
           tooltip: 'Speaker',
-          onPressed: () => unawaited(run(call.toggleSpeaker)),
-          size: 54,
-          radius: 27,
-          background: dark ? const Color(0x33ffffff) : Colors.white,
-          foreground: dark ? Colors.white : LegacyStyle.muted,
+          onPressed: nativeSpeaker
+              ? () => unawaited(run(call.toggleSpeaker))
+              : null,
+          size: 52,
+          radius: 26,
+          background: call.speaker ? LegacyStyle.accent : background,
+          foreground: call.speaker ? Colors.white : foreground,
         ),
-      LegacyIconButton(
-        icon: Icons.call_end,
-        tooltip: 'End call',
-        onPressed: () => unawaited(run(call.end)),
-        size: 54,
-        radius: 27,
-        background: LegacyStyle.danger,
-      ),
-    ],
-  );
+        LegacyIconButton(
+          icon: LegacyIcons.call_end,
+          tooltip: 'End call',
+          onPressed: () => unawaited(run(call.end)),
+          size: 52,
+          radius: 26,
+          background: const Color(0xffe53935),
+        ),
+      ],
+    );
+  }
+
+  bool get compactCall => MediaQuery.sizeOf(context).width <= 600;
 
   Widget callOverlay() => Positioned.fill(
     child: Semantics(
@@ -1633,7 +1746,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                   borderRadius: BorderRadius.circular(999),
                                 ),
                                 child: const Text(
-                                  '☎  INCOMING CALL',
+                                  'INCOMING CALL',
                                   style: TextStyle(
                                     color: Color(0xffdbeafe),
                                     fontSize: 13,
@@ -1653,16 +1766,21 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                 ),
                                 child: ProfileAvatar(
                                   name: call.peer!,
-                                  radius: 74,
+                                  radius:
+                                      (bounds.maxWidth * .28).clamp(116, 148) /
+                                      2,
                                 ),
                               ),
                               const SizedBox(height: 24),
                               Text(
                                 call.peer!,
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: Colors.white,
-                                  fontSize: 44,
+                                  fontSize: (bounds.maxWidth * .07).clamp(
+                                    30,
+                                    44,
+                                  ),
                                   fontWeight: FontWeight.w700,
                                   height: 1.12,
                                 ),
@@ -1695,8 +1813,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                           children: [
                                             LegacyIconButton(
                                               icon: accept
-                                                  ? Icons.call
-                                                  : Icons.call_end,
+                                                  ? LegacyIcons.call
+                                                  : LegacyIcons.call_end,
                                               tooltip: accept
                                                   ? 'Accept call'
                                                   : 'Decline call',
@@ -1811,10 +1929,16 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   )
                 : Center(
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(16),
+                      padding: EdgeInsets.all(compactCall ? 0 : 16),
                       child: Container(
-                        width: 420,
-                        constraints: const BoxConstraints(minHeight: 460),
+                        width: compactCall ? double.infinity : 420,
+                        constraints: BoxConstraints(
+                          minHeight: compactCall
+                              ? MediaQuery.sizeOf(context).height -
+                                    MediaQuery.paddingOf(context).vertical -
+                                    MediaQuery.viewInsetsOf(context).bottom
+                              : 460,
+                        ),
                         padding: const EdgeInsets.fromLTRB(24, 42, 24, 28),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
@@ -1822,8 +1946,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                             end: Alignment.bottomRight,
                             colors: [Colors.white, Color(0xffeaf2ff)],
                           ),
-                          border: Border.all(color: LegacyStyle.border),
-                          borderRadius: BorderRadius.circular(22),
+                          border: compactCall
+                              ? null
+                              : Border.all(color: LegacyStyle.border),
+                          borderRadius: BorderRadius.circular(
+                            compactCall ? 0 : 22,
+                          ),
                           boxShadow: const [
                             BoxShadow(
                               color: Color(0x401e3a5f),
@@ -1834,6 +1962,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         ),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: compactCall
+                              ? MainAxisAlignment.center
+                              : MainAxisAlignment.start,
                           children: [
                             const SizedBox(height: 35),
                             ProfileAvatar(name: call.peer!, radius: 48),
@@ -1860,7 +1991,22 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                 color: LegacyStyle.accent,
                               ),
                             ),
-                            const SizedBox(height: 48),
+                            const SizedBox(height: 26),
+                            const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(LegacyIcons.lock, size: 15),
+                                SizedBox(width: 5),
+                                Text(
+                                  'End-to-end encrypted',
+                                  style: TextStyle(
+                                    color: LegacyStyle.muted,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 22),
                             callControls(),
                           ],
                         ),
@@ -1940,6 +2086,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   );
 }
 
+String conversationDate(dynamic value) {
+  final date = DateTime.tryParse(value?.toString() ?? '')?.toLocal();
+  final now = DateTime.now();
+  if (date == null ||
+      (date.year == now.year &&
+          date.month == now.month &&
+          date.day == now.day)) {
+    return 'TODAY';
+  }
+  return '${date.day}/${date.month}/${date.year}';
+}
+
 String messageTime(dynamic value) {
   final date = DateTime.tryParse(value?.toString() ?? '')?.toLocal();
   if (date == null) return '';
@@ -1955,11 +2113,13 @@ String localTime(dynamic value) {
 class MessageBubble extends StatefulWidget {
   final Json message;
   final Api api;
+  final bool firstInRun;
   final void Function(String) onError;
   const MessageBubble({
     super.key,
     required this.message,
     required this.api,
+    this.firstInRun = true,
     required this.onError,
   });
   @override
@@ -2057,156 +2217,170 @@ class _MessageBubbleState extends State<MessageBubble> {
     return LayoutBuilder(
       builder: (context, bounds) => Align(
         alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
-          constraints: BoxConstraints(
-            maxWidth:
-                (bounds.maxWidth *
-                        (MediaQuery.sizeOf(context).width > 900 ? .76 : .85))
-                    .clamp(0, 620),
+        child: CustomPaint(
+          foregroundPainter: LegacyBubbleTail(
+            mine: mine,
+            first: widget.firstInRun,
           ),
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.fromLTRB(13, 10, 13, 9),
-          decoration: BoxDecoration(
-            color: mine ? null : Colors.white,
-            gradient: mine
-                ? const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xff3475ed), LegacyStyle.accent],
-                  )
-                : null,
-            border: Border.all(
-              color: mine ? const Color(0xff2d65dc) : const Color(0xffe3eaf2),
+          child: Container(
+            constraints: BoxConstraints(
+              maxWidth:
+                  (bounds.maxWidth *
+                          (MediaQuery.sizeOf(context).width > 900 ? .76 : .85))
+                      .clamp(0, 620),
             ),
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(mine ? 18 : 5),
-              topRight: Radius.circular(mine ? 5 : 18),
-              bottomLeft: const Radius.circular(18),
-              bottomRight: const Radius.circular(18),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: mine ? const Color(0x262563eb) : const Color(0x121f436d),
-                blurRadius: mine ? 18 : 16,
-                offset: Offset(0, mine ? 7 : 5),
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.fromLTRB(13, 10, 13, 9),
+            decoration: BoxDecoration(
+              color: mine ? null : Colors.white,
+              gradient: mine
+                  ? const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xff3475ed), LegacyStyle.accent],
+                    )
+                  : null,
+              border: Border.all(
+                color: mine ? const Color(0xff2d65dc) : const Color(0xffe3eaf2),
               ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (preview != null)
-                FutureBuilder<Uint8List>(
-                  future: preview,
-                  builder: (context, snapshot) {
-                    if (snapshot.hasError) {
-                      return Text(
-                        'Image unavailable. Use Download to retry.',
-                        style: TextStyle(color: foreground),
-                      );
-                    }
-                    if (!snapshot.hasData) {
-                      return const SizedBox(
-                        width: 180,
-                        height: 100,
-                        child: Center(
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      );
-                    }
-                    return ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: Image.memory(
-                        snapshot.data!,
-                        width: 260,
-                        height: 180,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, error, stack) => Text(
-                          'Cannot preview this image.',
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(!mine && widget.firstInRun ? 5 : 18),
+                topRight: Radius.circular(mine && widget.firstInRun ? 5 : 18),
+                bottomLeft: const Radius.circular(18),
+                bottomRight: const Radius.circular(18),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: mine
+                      ? const Color(0x262563eb)
+                      : const Color(0x121f436d),
+                  blurRadius: mine ? 18 : 16,
+                  offset: Offset(0, mine ? 7 : 5),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (preview != null)
+                  FutureBuilder<Uint8List>(
+                    future: preview,
+                    builder: (context, snapshot) {
+                      if (snapshot.hasError) {
+                        return Text(
+                          'Image unavailable. Use Download to retry.',
                           style: TextStyle(color: foreground),
+                        );
+                      }
+                      if (!snapshot.hasData) {
+                        return const SizedBox(
+                          width: 180,
+                          height: 100,
+                          child: Center(
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        );
+                      }
+                      return ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.memory(
+                          snapshot.data!,
+                          width: 260,
+                          height: 180,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, error, stack) => Text(
+                            'Cannot preview this image.',
+                            style: TextStyle(color: foreground),
+                          ),
                         ),
-                      ),
-                    );
-                  },
-                ),
-              if (m['text'] != null && (m['text'] as String).isNotEmpty)
-                SelectableText(
-                  m['text'] as String,
-                  style: TextStyle(
-                    fontSize: 14.5,
-                    height: 1.48,
-                    color: foreground,
+                      );
+                    },
                   ),
-                ),
-              if (a != null)
-                Wrap(
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    if (audio)
-                      LegacyIconButton(
-                        tooltip: playing
-                            ? 'Pause voice note'
-                            : 'Play voice note',
+                if (m['text'] != null && (m['text'] as String).isNotEmpty)
+                  SelectableText(
+                    m['text'] as String,
+                    style: TextStyle(
+                      fontSize: 14.5,
+                      height: 1.48,
+                      color: foreground,
+                    ),
+                  ),
+                if (a != null)
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      if (audio)
+                        LegacyIconButton(
+                          tooltip: playing
+                              ? 'Pause voice note'
+                              : 'Play voice note',
+                          onPressed: busy
+                              ? null
+                              : () => unawaited(attachment(true)),
+                          icon: playing
+                              ? LegacyIcons.pause
+                              : LegacyIcons.play_arrow,
+                          foreground: foreground,
+                        ),
+                      LegacyButton(
                         onPressed: busy
                             ? null
-                            : () => unawaited(attachment(true)),
-                        icon: playing ? Icons.pause : Icons.play_arrow,
+                            : () => unawaited(attachment(false)),
+                        tooltip: 'Download attachment',
                         foreground: foreground,
-                      ),
-                    LegacyButton(
-                      onPressed: busy
-                          ? null
-                          : () => unawaited(attachment(false)),
-                      tooltip: 'Download attachment',
-                      foreground: foreground,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 8,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.download_outlined, size: 20),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              busy ? 'Loading…' : a['fileName'] as String,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(LegacyIcons.download, size: 20),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                busy ? 'Loading…' : a['fileName'] as String,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                const SizedBox(height: 5),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text(
+                      messageTime(m['createdAt']),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: mine
+                            ? const Color(0xffdbeafe)
+                            : LegacyStyle.muted,
                       ),
                     ),
+                    if (mine) ...[
+                      const SizedBox(width: 3),
+                      Semantics(
+                        label: m['read'] == true ? 'Read' : 'Sent',
+                        child: Icon(
+                          m['read'] == true
+                              ? LegacyIcons.done_all
+                              : LegacyIcons.done,
+                          size: 16,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
-              const SizedBox(height: 5),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Text(
-                    messageTime(m['createdAt']),
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: mine ? const Color(0xffdbeafe) : LegacyStyle.muted,
-                    ),
-                  ),
-                  if (mine) ...[
-                    const SizedBox(width: 3),
-                    Semantics(
-                      label: m['read'] == true ? 'Read' : 'Sent',
-                      child: Icon(
-                        m['read'] == true ? Icons.done_all : Icons.done,
-                        size: 16,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
