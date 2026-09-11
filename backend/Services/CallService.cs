@@ -23,11 +23,13 @@ public sealed class CallService(ChatDbContext db)
         ObjectId callerId,
         ObjectId receiverId,
         string callType = "Audio",
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? groupCallId = null, string? conversationId = null, string? conversationName = null, int memberCount = 2)
     {
         var call = new CallHistory
         {
             Id = ObjectId.GenerateNewId(),
+            GroupCallId = groupCallId, ConversationId = conversationId, ConversationName = conversationName, MemberCount = memberCount,
             CallerId = callerId,
             ReceiverId = receiverId,
             CallType = callType,
@@ -39,6 +41,19 @@ public sealed class CallService(ChatDbContext db)
         await db.SaveChangesAsync(cancellationToken);
 
         return call;
+    }
+
+    public async Task UpdateGroupHistoryAsync(ObjectId id, bool answered, bool rejected = false)
+    {
+        var call = await GetByIdAsync(id);
+        if (call is null || call.EndDate != null) return;
+        if (answered) { call.Status = Answered; call.AnsweredAt = DateTime.UtcNow; }
+        else {
+            call.EndDate = DateTime.UtcNow;
+            call.Duration = call.AnsweredAt.HasValue ? (int)(call.EndDate.Value - call.AnsweredAt.Value).TotalSeconds : 0;
+            call.Status = rejected ? Rejected : call.AnsweredAt.HasValue ? Completed : Missed;
+        }
+        await db.SaveChangesAsync();
     }
 
     public async Task MarkAnsweredAsync(
@@ -102,7 +117,7 @@ public sealed class CallService(ChatDbContext db)
         CancellationToken cancellationToken)
     {
         return await db.CallHistories
-            .Where(c => c.EndDate == null
+            .Where(c => c.GroupCallId == null && c.EndDate == null
                 && ((c.CallerId == userA && c.ReceiverId == userB)
                     || (c.CallerId == userB && c.ReceiverId == userA)))
             .OrderByDescending(c => c.StartDate)
@@ -179,7 +194,11 @@ public sealed class CallService(ChatDbContext db)
             .Where(u => peerIds.Contains(u.Id))
             .ToDictionaryAsync(u => u.Id, u => u.Username, cancellationToken);
 
-        return calls.Select(call =>
+        // A host has one stored invitation per recipient, displayed as one group call.
+        return calls.GroupBy(c => c.GroupCallId ?? c.Id.ToString())
+            .Select(g => g.OrderByDescending(c => c.Status == Answered || c.Status == Completed)
+                .ThenByDescending(c => c.Duration ?? 0).First())
+            .Select(call =>
         {
             var outgoing = call.CallerId == userId;
             var peerId = outgoing ? call.ReceiverId : call.CallerId;
@@ -192,7 +211,7 @@ public sealed class CallService(ChatDbContext db)
                 outgoing,
                 call.StartDate,
                 call.EndDate,
-                call.Duration);
+                call.Duration, call.GroupCallId != null, call.ConversationId, call.ConversationName, call.MemberCount);
         }).ToList();
     }
 }

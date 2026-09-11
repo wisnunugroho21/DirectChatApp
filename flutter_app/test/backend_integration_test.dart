@@ -9,8 +9,13 @@ void main() {
     'API and SignalR preserve chat, attachment privacy, reads and video calls',
     () async {
       final suffix = DateTime.now().microsecondsSinceEpoch;
-      final clients = List.generate(3, (_) => Api());
-      final names = ['alice$suffix', 'bob$suffix', 'eve$suffix'];
+      final clients = List.generate(4, (_) => Api());
+      final names = [
+        'alice$suffix',
+        'bob$suffix',
+        'eve$suffix',
+        'outsider$suffix',
+      ];
       final hubs = <HubConnection>[];
       addTearDown(() async {
         for (final h in hubs) {
@@ -117,6 +122,132 @@ void main() {
         "/api/conversations/${conversation['id']}",
       );
       expect(await clients[1].request('GET', '/api/conversations'), isEmpty);
+      await expectLater(
+        clients[0].request('POST', '/api/conversations/groups', {
+          'name': 'Invalid',
+          'usernames': [names[1]],
+        }),
+        throwsA(isA<ApiException>().having((e) => e.status, 'status', 400)),
+      );
+      final group = await clients[0].request(
+        'POST',
+        '/api/conversations/groups',
+        {
+          'name': 'Dispatch team',
+          'usernames': [names[1], names[2]],
+        },
+      );
+      expect(group['type'], 'Group');
+      expect(group['memberCount'], 3);
+      final groupMessage = Completer<Map>();
+      hubs[2].on('ReceiveMessage', (args) {
+        final m = args!.first as Map;
+        if (m['conversationId'] == group['id'] && !groupMessage.isCompleted) {
+          groupMessage.complete(m);
+        }
+      });
+      await hubs[0].invoke(
+        'SendConversationMessage',
+        args: [group['id'], 'Group dispatch'],
+      );
+      expect(
+        (await groupMessage.future.timeout(
+          const Duration(seconds: 10),
+        ))['text'],
+        'Group dispatch',
+      );
+      await expectLater(
+        hubs[3].invoke(
+          'SendConversationMessage',
+          args: [group['id'], 'Intrusion'],
+        ),
+        throwsA(anything),
+      );
+      final groupFile = await clients[1].upload(
+        group['id'],
+        Uint8List.fromList([42]),
+        'group.txt',
+        'text/plain',
+      );
+      expect(await clients[2].download(groupFile['attachment']['url']), [42]);
+      await expectLater(
+        clients[3].download(groupFile['attachment']['url']),
+        throwsA(isA<ApiException>().having((e) => e.status, 'status', 403)),
+      );
+      final summaries =
+          await clients[2].request('GET', '/api/conversations') as List;
+      expect(summaries.single['memberCount'], 3);
+      expect(summaries.single['unread'], 2);
+      await clients[2].request(
+        'POST',
+        "/api/conversations/${group['id']}/read",
+      );
+      expect(
+        (await clients[2].request('GET', '/api/conversations') as List)
+            .single['unread'],
+        0,
+      );
+      final groupRing = Completer<List<Object?>>();
+      hubs[1].on('IncomingGroupCall', (args) {
+        if (!groupRing.isCompleted) groupRing.complete(args!);
+      });
+      final room =
+          await hubs[0].invoke('StartGroupCall', args: [group['id'], 'Video'])
+              as Map;
+      expect(
+        (await groupRing.future.timeout(const Duration(seconds: 10)))[4],
+        'Dispatch team',
+      );
+      expect(
+        (await clients[1].request('GET', '/api/calls/ringing'))['groupCallId'],
+        room['groupCallId'],
+      );
+      await expectLater(
+        hubs[3].invoke('AcceptGroupCall', args: [room['groupCallId']]),
+        throwsA(anything),
+      );
+      await hubs[1].invoke('AcceptGroupCall', args: [room['groupCallId']]);
+      final offer = Completer<List<Object?>>();
+      hubs[0].on('ReceiveGroupOffer', (args) {
+        if (!offer.isCompleted) offer.complete(args!);
+      });
+      await hubs[1].invoke(
+        'SendGroupOffer',
+        args: [room['groupCallId'], names[0], '{"sdp":"test"}'],
+      );
+      expect(
+        (await offer.future.timeout(const Duration(seconds: 10))).first,
+        names[1],
+      );
+      await expectLater(
+        hubs[1].invoke(
+          'SendGroupOffer',
+          args: [room['groupCallId'], names[3], '{}'],
+        ),
+        throwsA(anything),
+      );
+      await hubs[0].invoke('LeaveGroupCall', args: [room['groupCallId']]);
+      expect(
+        (await clients[1].request('GET', '/api/calls/ringing'))['ringing'],
+        false,
+      );
+      final groupHistory =
+          await clients[1].request('GET', '/api/calls') as List;
+      expect(groupHistory.first['isGroup'], true);
+      expect(groupHistory.first['status'], 'Completed');
+      await clients[2].request('DELETE', "/api/conversations/${group['id']}");
+      await expectLater(
+        hubs[2].invoke(
+          'SendConversationMessage',
+          args: [group['id'], 'After leaving'],
+        ),
+        throwsA(anything),
+      );
+      expect(
+        (await clients[0].request('GET', '/api/conversations') as List)
+            .firstWhere((c) => c['id'] == group['id'])['memberCount'],
+        2,
+      );
     },
     skip: !const bool.fromEnvironment('RUN_BACKEND_TESTS'),
     timeout: const Timeout(Duration(minutes: 2)),

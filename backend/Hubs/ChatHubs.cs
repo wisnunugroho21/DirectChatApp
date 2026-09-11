@@ -1,4 +1,5 @@
 using ChatApp.Models;
+using MongoDB.Bson;
 using ChatApp.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
@@ -6,11 +7,12 @@ using Microsoft.AspNetCore.SignalR;
 namespace ChatApp.Hubs;
 
 [Authorize]
-public class ChatHubs(
+public partial class ChatHubs(
     UserService users,
     ConversationService conversations,
     MessageService messages,
     CallService calls,
+    GroupCallRegistry groupCalls,
     ConnectionTracker connections,
     PushNotificationService push,
     ILogger<ChatHubs> logger) : Hub
@@ -39,6 +41,7 @@ public class ChatHubs(
 
         if (!string.IsNullOrWhiteSpace(username) && connections.Remove(username, Context.ConnectionId))
         {
+            await LeaveDisconnectedGroups(username);
             await users.SetPresenceAsync(username, "Offline");
             await Clients.Others.SendAsync("PresenceChanged", username, "Offline");
         }
@@ -49,6 +52,23 @@ public class ChatHubs(
     // ============================================================
     // CHAT
     // ============================================================
+    public async Task<MessageDto> SendConversationMessage(string conversationId, string text)
+    {
+        var sender = await users.GetByUsernameAsync(Context.UserIdentifier ?? "")
+            ?? throw new HubException("Sign in to send messages.");
+        if (!ObjectId.TryParse(conversationId, out var id) || !await conversations.IsMemberAsync(id, sender.Id))
+            throw new HubException("Conversation is not available.");
+        if (string.IsNullOrWhiteSpace(text)) throw new HubException("Message is required.");
+        var saved = await messages.SaveAsync(id, sender.Id, text.Trim());
+        foreach (var member in await conversations.MembersAsync(id))
+        {
+            await Clients.User(member.Username).SendAsync("ReceiveMessage", messages.ToDto(saved, sender.Username, member.Id));
+            if (member.Id != sender.Id)
+                await push.SendChatMessageAsync(member, sender, saved, connections.GetActiveDeviceTokens(member.Username));
+        }
+        return messages.ToDto(saved, sender.Username, sender.Id);
+    }
+
     /// <summary>
     /// Menyimpan pesan ke MongoDB lalu meneruskannya ke penerima. Nilai baliknya
     /// dipakai pengirim untuk merender bubble dengan id dan waktu dari server.

@@ -246,6 +246,8 @@ class ProfileAvatar extends StatelessWidget {
   final String? initials;
   final String? colorKey;
   final bool profile;
+  final bool group;
+  final int? memberCount;
   final double radius;
   final bool? online;
   const ProfileAvatar({
@@ -254,6 +256,8 @@ class ProfileAvatar extends StatelessWidget {
     this.initials,
     this.colorKey,
     this.profile = false,
+    this.group = false,
+    this.memberCount,
     this.radius = 24.5,
     this.online,
   });
@@ -297,7 +301,9 @@ class ProfileAvatar extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: palette[profile ? 0 : hash % palette.length],
+                colors: group
+                    ? const [Color(0xff7c3aed), Color(0xff4f46e5)]
+                    : palette[profile ? 0 : hash % palette.length],
               ),
               boxShadow: const [
                 BoxShadow(
@@ -307,17 +313,43 @@ class ProfileAvatar extends StatelessWidget {
                 ),
               ],
             ),
-            child: Text(
-              (this.initials ?? initials).toUpperCase(),
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: profile ? 14 : radius * .69,
-                fontWeight: FontWeight.w700,
-                letterSpacing: .5,
+            child: group
+                ? Icon(LegacyIcons.groups, color: Colors.white, size: radius)
+                : Text(
+                    (this.initials ?? initials).toUpperCase(),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: profile ? 14 : radius * .69,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: .5,
+                    ),
+                  ),
+          ),
+          if (group && memberCount != null)
+            Positioned(
+              right: -4,
+              bottom: -3,
+              child: Container(
+                height: 20,
+                constraints: const BoxConstraints(minWidth: 20),
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: const Color(0xff4f46e5),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: LegacyStyle.sidebar, width: 2),
+                ),
+                child: Text(
+                  '$memberCount',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
               ),
             ),
-          ),
-          if (online != null)
+          if (!group && online != null)
             Positioned(
               right: 0,
               bottom: 1,

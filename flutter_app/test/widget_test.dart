@@ -44,6 +44,7 @@ class PreviewStore extends ChatStore {
     ];
     contacts = [
       {'username': 'jane', 'fullName': 'Jane Cooper', 'status': 'Online'},
+      {'username': 'robert', 'fullName': 'Robert Fox', 'status': 'Offline'},
     ];
   }
   @override
@@ -66,6 +67,37 @@ class PreviewStore extends ChatStore {
         'text': 'Thanks, Jane. I’ll pick them up before heading out.',
         'createdAt': '2026-09-06T08:43:00Z',
         'read': true,
+      },
+    ];
+    changed();
+  }
+
+  @override
+  Future<void> createGroup(String name, List<String> usernames) async {
+    expect(usernames, containsAll(['jane', 'robert']));
+    final group = <String, dynamic>{
+      'id': 'group',
+      'type': 'Group',
+      'name': name,
+      'memberCount': 3,
+      'unread': 0,
+    };
+    conversations.add(group);
+    await open(group);
+    messages = [
+      {
+        'id': 'g1',
+        'sender': 'jane',
+        'mine': false,
+        'text': 'Welcome team',
+        'createdAt': '2026-09-11T08:00:00Z',
+      },
+      {
+        'id': 'g2',
+        'sender': 'robert',
+        'mine': false,
+        'text': 'Ready for dispatch',
+        'createdAt': '2026-09-11T08:01:00Z',
       },
     ];
     changed();
@@ -251,6 +283,50 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Pick someone to message'), findsOneWidget);
       await capture(tester, 'contacts-${size.width.toInt()}');
+      await tester.tap(find.text('Create a group'));
+      await tester.pumpAndSettle();
+      expect(find.text('Select at least 2 people'), findsOneWidget);
+      expect(
+        tester
+            .widget<LegacyIconButton>(
+              find.ancestor(
+                of: find.byTooltip('Create group'),
+                matching: find.byType(LegacyIconButton),
+              ),
+            )
+            .onPressed,
+        isNull,
+      );
+      await tester.tap(find.text('Jane Cooper'));
+      await tester.tap(find.text('Robert Fox'));
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Group name'),
+        'Dispatch team',
+      );
+      await tester.pumpAndSettle();
+      await capture(tester, 'group-create-${size.width.toInt()}');
+      await tester.tap(find.byTooltip('Create group'));
+      await tester.pumpAndSettle();
+      expect(find.text('3 members'), findsOneWidget);
+      expect(
+        find.text('Messages are shared with group members.'),
+        findsOneWidget,
+      );
+      expect(find.text('jane'), findsOneWidget);
+      expect(find.text('robert'), findsOneWidget);
+      expect(
+        tester
+            .widgetList<MessageBubble>(find.byType(MessageBubble))
+            .every((b) => b.firstInRun),
+        isTrue,
+      );
+      await capture(tester, 'group-conversation-${size.width.toInt()}');
+      store.closeConversation();
+      store.conversations.removeWhere((c) => c['type'] == 'Group');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('New chat'));
+      await tester.pumpAndSettle();
+
       await tester.tap(find.byTooltip('Back to chats'));
       await tester.pump();
       await tester.tap(find.byTooltip('Call History'));
@@ -297,6 +373,21 @@ void main() {
       await tester.pumpAndSettle();
       await capture(tester, 'voice-call-${size.width.toInt()}');
       expect(find.byTooltip('End call'), findsOneWidget);
+      call.group = true;
+      call.groupName = 'Dispatch team';
+      call.status = 'Waiting for members…';
+      call.changed();
+      await tester.pumpAndSettle();
+      expect(find.text('Group voice call'), findsOneWidget);
+      await capture(tester, 'group-call-${size.width.toInt()}');
+      call.video = true;
+      call.changed();
+      await tester.pumpAndSettle();
+      expect(find.text('Camera off'), findsOneWidget);
+      await capture(tester, 'group-video-${size.width.toInt()}');
+      call.video = false;
+      call.group = false;
+
       call.incoming = true;
       call.changed();
       await tester.pumpAndSettle();

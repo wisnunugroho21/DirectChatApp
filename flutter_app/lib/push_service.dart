@@ -104,7 +104,10 @@ class PushService {
       return;
     }
     final sender = message.data['senderUsername'];
-    if (sender != null) await chat.direct(sender);
+    await chat.openNotification(
+      conversationId: message.data['conversationId'],
+      sender: sender,
+    );
   }
 
   Future<void> unregister() async {

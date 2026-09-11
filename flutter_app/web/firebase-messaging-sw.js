@@ -6,6 +6,7 @@ if (self.FIREBASE_CONFIG) {
     event.stopImmediatePropagation();
     const data = event.notification.data?.FCM_MSG?.data || event.notification.data || {};
     const url = new URL('./', self.location.href);
+    if (data.conversationId) url.searchParams.set('conversationId', data.conversationId);
     if (data.senderUsername) url.searchParams.set('sender', data.senderUsername);
     event.waitUntil(clients.openWindow(url.href));
   });

@@ -94,9 +94,9 @@ public class AttachmentsController(
 
         // Penerima dikabari lewat jalur yang sama dengan pesan teks, supaya
         // lampiran muncul seketika dan tetap memicu notifikasi bila offline.
-        var peer = await PeerOfAsync(conversation, me.Id, cancellationToken);
+        var members = await conversations.MembersAsync(conversation, cancellationToken);
 
-        if (peer is not null)
+        foreach (var peer in members.Where(u => u.Id != me.Id))
         {
             await hub.Clients.User(peer.Username).SendAsync(
                 "ReceiveMessage",
@@ -112,21 +112,6 @@ public class AttachmentsController(
         }
 
         return Ok(messages.ToDto(message, me.Username, me.Id, attachment));
-    }
-
-    private async Task<Models.User?> PeerOfAsync(
-        ObjectId conversationId,
-        ObjectId meId,
-        CancellationToken cancellationToken)
-    {
-        var peerId = await db.ConversationMembers
-            .Where(m => m.ConversationId == conversationId && m.UserId != meId)
-            .Select(m => m.UserId)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (peerId == default) return null;
-
-        return (await users.GetByIdsAsync([peerId])).FirstOrDefault();
     }
 
     private async Task<Models.User?> CurrentUserAsync()

@@ -18,6 +18,7 @@ public static class ServiceInjectionModule
 
         // Daftar koneksi aktif harus dibagi ke seluruh hub, jadi singleton.
         services.AddSingleton<ConnectionTracker>();
+        services.AddSingleton<GroupCallRegistry>();
         services.AddHostedService<MongoDbInitializer>();
 
         return services;

@@ -6,6 +6,12 @@ The converted application is entirely in this `New` directory. `Legacy` is uncha
 - `backend/`: ASP.NET Core 10 REST API, SignalR hub, MongoDB persistence and notification delivery. There are no Razor pages, WebViews, or server-rendered frontend assets.
 - `Configure-WebPush.ps1`: generates the public Firebase configuration used by the browser service worker.
 
+## Latest Legacy parity update
+
+New includes Legacy's group creation flow (80-character names, 3–50 members), purple group avatars and member badges, sender labels, conversation refresh, mark-all-read, and conversation-aware notification links. Group text and attachment delivery, unread counts, and membership checks are implemented in New's backend; these endpoints were referenced by the updated Legacy JavaScript but absent from its backend.
+
+Group voice/video calls support up to 8 current members, with participant tiles, camera state, accept/decline, call history and invitation recovery. The host ending or disconnecting ends the group call. Active group-call rooms are held in memory alongside the existing connection tracker: use a single signaling server; a server restart ends active calls, while history remains in MongoDB. Camera/microphone and TURN connectivity still require testing on the target devices; automated tests verify signaling, not actual media transport. Firebase delivery requires your configured credentials.
+
 ## Run locally
 
 Install Flutter (validated with 3.41.6 / Dart 3.11.4), .NET 10 SDK and MongoDB. Keep the committed Flutter `pubspec.lock`; Firebase and secure-storage dependencies are pinned for compatibility with this Flutter SDK.

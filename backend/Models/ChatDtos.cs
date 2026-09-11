@@ -30,7 +30,10 @@ public record ConversationSummaryDto(
     string? LastMessage,
     DateTime? LastMessageAt,
     bool LastMessageMine,
-    int Unread);
+    int Unread,
+    string Type = "Direct",
+    string? Name = null,
+    int MemberCount = 2);
 
 public record CallHistoryDto(
     string Id,
@@ -40,4 +43,8 @@ public record CallHistoryDto(
     bool Outgoing,
     DateTime StartDate,
     DateTime? EndDate,
-    int? Duration);
+    int? Duration,
+    bool IsGroup = false,
+    string? ConversationId = null,
+    string? ConversationName = null,
+    int MemberCount = 2);

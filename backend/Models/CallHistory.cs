@@ -12,6 +12,11 @@ public class CallHistory
 
     public ObjectId ReceiverId { get; set; }
 
+    public string? GroupCallId { get; set; }
+    public string? ConversationId { get; set; }
+    public string? ConversationName { get; set; }
+    public int MemberCount { get; set; } = 2;
+
     public string CallType { get; set; } = "Audio";
 
     public DateTime StartDate { get; set; }

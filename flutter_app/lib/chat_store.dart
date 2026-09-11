@@ -24,6 +24,7 @@ class ChatStore extends ChangeNotifier {
         )
         .withAutomaticReconnect()
         .build();
+    hub.on('ConversationCreated', (_) => unawaited(guard(refresh)));
     hub.on('ReceiveMessage', (args) {
       if (args == null || args.isEmpty) return;
       final message = Map<String, dynamic>.from(args[0] as Map);
@@ -116,6 +117,10 @@ class ChatStore extends ChangeNotifier {
         .toList();
     contacts = (result[1] as List).map((e) => Json.from(e as Map)).toList();
     calls = (result[2] as List).map((e) => Json.from(e as Map)).toList();
+    if (selected != null) {
+      final current = conversations.where((c) => c['id'] == selected!['id']);
+      if (current.isNotEmpty) selected = current.first;
+    }
     changed();
   }
 
@@ -199,10 +204,49 @@ class ChatStore extends ChangeNotifier {
     await open(c);
   }
 
+  Future<void> createGroup(String name, List<String> usernames) async {
+    final group = Json.from(
+      await api.request('POST', '/api/conversations/groups', {
+            'name': name.trim(),
+            'usernames': usernames,
+          })
+          as Map,
+    );
+    await refresh();
+    await open(group);
+  }
+
+  Future<void> openNotification({
+    String? conversationId,
+    String? sender,
+  }) async {
+    if (conversationId != null && conversationId.isNotEmpty) {
+      await refresh();
+      for (final c in conversations) {
+        if (c['id'] == conversationId) {
+          await open(c);
+          return;
+        }
+      }
+      throw StateError('This conversation is no longer available.');
+    }
+    if (sender != null && sender.isNotEmpty) await direct(sender);
+  }
+
+  Future<void> markAllRead() async {
+    for (final c in conversations.where(
+      (c) => (c['unread'] as num? ?? 0) > 0,
+    )) {
+      await api.request('POST', '/api/conversations/${c['id']}/read');
+      c['unread'] = 0;
+    }
+    changed();
+  }
+
   Future<void> markRead() async {
     final c = selected;
     if (c == null) return;
-    if (hub.state == HubConnectionState.Connected) {
+    if (c['type'] != 'Group' && hub.state == HubConnectionState.Connected) {
       await hub.invoke('MarkRead', args: [c['peerUsername'] as String]);
     } else {
       await api.request('POST', '/api/conversations/${c['id']}/read');
@@ -225,8 +269,12 @@ class ChatStore extends ChangeNotifier {
   Future<void> send(String text) async {
     if (selected == null || text.trim().isEmpty) return;
     final result = await hub.invoke(
-      'SendMessage',
-      args: [selected!['peerUsername'] as String, text.trim()],
+      selected!['type'] == 'Group' ? 'SendConversationMessage' : 'SendMessage',
+      args: [
+        selected![selected!['type'] == 'Group' ? 'id' : 'peerUsername']
+            as String,
+        text.trim(),
+      ],
     );
     addMessage(Json.from(result as Map));
     await refresh();

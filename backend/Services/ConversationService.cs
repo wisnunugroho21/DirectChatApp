@@ -7,6 +7,37 @@ namespace ChatApp.Services;
 
 public sealed class ConversationService(ChatDbContext db, ChatTypeCatalog types)
 {
+    public const int MaxGroupMembers = 50;
+
+    public async Task<Conversation> CreateGroupAsync(ObjectId creator, string name,
+        IReadOnlyCollection<ObjectId> members, CancellationToken cancellationToken = default)
+    {
+        var ids = members.Append(creator).Distinct().ToList();
+        if (string.IsNullOrWhiteSpace(name) || name.Trim().Length > 80 || ids.Count < 3 || ids.Count > MaxGroupMembers)
+            throw new ArgumentException("Enter a group name (up to 80 characters) and select 2 to 49 people.");
+        var conversation = new Conversation {
+            Id = ObjectId.GenerateNewId(), Name = name.Trim(), CreatedBy = creator,
+            TypeId = types.ConversationTypeId(ChatTypeCatalog.GroupConversation)
+        };
+        db.Conversations.Add(conversation);
+        db.ConversationMembers.AddRange(ids.Select(id => new ConversationMember {
+            Id = ObjectId.GenerateNewId(), ConversationId = conversation.Id, UserId = id,
+            Role = id == creator ? "Admin" : "Member", JoinDate = DateTime.UtcNow
+        }));
+        await db.SaveChangesAsync(cancellationToken);
+        return conversation;
+    }
+
+    public Task<Conversation?> GetAsync(ObjectId id, CancellationToken ct = default) =>
+        db.Conversations.FirstOrDefaultAsync(c => c.Id == id, ct);
+
+    public async Task<List<User>> MembersAsync(ObjectId id, CancellationToken ct = default)
+    {
+        var ids = await db.ConversationMembers.Where(m => m.ConversationId == id)
+            .Select(m => m.UserId).ToListAsync(ct);
+        return await db.Users.Where(u => ids.Contains(u.Id)).ToListAsync(ct);
+    }
+
     /// <summary>
     /// Kunci deterministik untuk percakapan 1-1: id user diurutkan dulu supaya
     /// pasangan yang sama selalu menghasilkan kunci yang sama dari sisi mana pun.
@@ -123,12 +154,17 @@ public sealed class ConversationService(ChatDbContext db, ChatTypeCatalog types)
             .Where(u => peerIds.Contains(u.Id))
             .ToDictionaryAsync(u => u.Id, cancellationToken);
 
+        var records = await db.Conversations.Where(c => conversationIds.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, cancellationToken);
         var summaries = new List<ConversationSummaryDto>();
 
         foreach (var membership in memberships)
         {
             var peerMember = peerMembers.FirstOrDefault(m => m.ConversationId == membership.ConversationId);
-            if (peerMember is null || !peerById.TryGetValue(peerMember.UserId, out var peer)) continue;
+            if (!records.TryGetValue(membership.ConversationId, out var record)) continue;
+            var isGroup = record.TypeId == types.ConversationTypeId(ChatTypeCatalog.GroupConversation);
+            var peer = peerMember is null ? null : peerById.GetValueOrDefault(peerMember.UserId);
+            if (!isGroup && peer is null) continue;
 
             var conversationId = membership.ConversationId;
 
@@ -151,14 +187,15 @@ public sealed class ConversationService(ChatDbContext db, ChatTypeCatalog types)
 
             summaries.Add(new ConversationSummaryDto(
                 conversationId.ToString(),
-                peer.Username,
-                peer.FullName,
-                peer.PhotoUrl,
-                peer.Status,
+                isGroup ? "" : peer!.Username,
+                isGroup ? record.Name ?? "Untitled group" : peer!.FullName,
+                isGroup ? record.PhotoUrl : peer!.PhotoUrl,
+                isGroup ? "" : peer!.Status,
                 last?.MessageText,
                 last?.CreatedAt,
                 last is not null && last.SenderId == userId,
-                unread));
+                unread, isGroup ? "Group" : "Direct", record.Name,
+                peerMembers.Count(m => m.ConversationId == conversationId) + 1));
         }
 
         return summaries

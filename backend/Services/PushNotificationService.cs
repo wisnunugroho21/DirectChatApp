@@ -108,6 +108,11 @@ public sealed class PushNotificationService(
             {
                 ["type"] = "call",
                 ["callId"] = call.Id.ToString(),
+                ["isGroup"] = (call.GroupCallId != null).ToString().ToLowerInvariant(),
+                ["groupCallId"] = call.GroupCallId ?? "",
+                ["conversationId"] = call.ConversationId ?? "",
+                ["conversationName"] = call.ConversationName ?? "",
+                ["memberCount"] = call.MemberCount.ToString(),
                 ["callerUsername"] = caller.Username,
                 ["callerName"] = callerLabel,
                 ["callType"] = call.CallType,

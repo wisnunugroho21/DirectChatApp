@@ -441,7 +441,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         await chat.start();
         await recoverCall();
         final sender = Uri.base.queryParameters['sender'];
-        if (sender != null && sender.isNotEmpty) await chat.direct(sender);
+        await chat.openNotification(
+          conversationId: Uri.base.queryParameters['conversationId'],
+          sender: sender,
+        );
         if (const bool.fromEnvironment('ENABLE_PUSH')) await push.enable();
       }),
     );
@@ -481,6 +484,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final ringing = await widget.api.request('GET', '/api/calls/ringing');
     if (ringing['ringing'] != true) return;
     call.peer = ringing['callerUsername'];
+    call.group = ringing['isGroup'] == true;
+    call.groupId = ringing['groupCallId'];
+    call.groupName = ringing['conversationName'];
+    call.groupConversationId = ringing['conversationId'];
     call.video = ringing['callType'] == 'Video';
     call.incoming = true;
     call.status = 'Incoming call';
@@ -520,6 +527,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     chat.dispose();
     composer.dispose();
     search.dispose();
+    groupName.dispose();
     noticeTimer?.cancel();
     unawaited(recorder.dispose());
     super.dispose();
@@ -616,12 +624,136 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (mounted) setState(() => recording = false);
   }
 
+  bool groupMode = false, creatingGroup = false;
+  final groupName = TextEditingController();
+  final selectedMembers = <String>{};
+  void setGroupMode(bool value) => setState(() {
+    groupMode = value;
+    selectedMembers.clear();
+    groupName.clear();
+  });
+  void toggleMember(String username) => setState(() {
+    if (!selectedMembers.remove(username)) {
+      if (selectedMembers.length >= 49) {
+        notice('A group can have up to 50 members.');
+        return;
+      }
+      selectedMembers.add(username);
+    }
+  });
+  Widget groupFooter() => Container(
+    padding: const EdgeInsets.fromLTRB(13, 10, 13, 13),
+    decoration: const BoxDecoration(
+      color: Colors.white,
+      border: Border(top: BorderSide(color: LegacyStyle.border)),
+    ),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (selectedMembers.isNotEmpty)
+          SizedBox(
+            height: 42,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                for (final username in selectedMembers)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 7, bottom: 10),
+                    child: LegacyButton(
+                      height: 32,
+                      padding: const EdgeInsets.symmetric(horizontal: 11),
+                      radius: 999,
+                      background: LegacyStyle.soft,
+                      foreground: const Color(0xff25496f),
+                      onPressed: creatingGroup
+                          ? null
+                          : () => toggleMember(username),
+                      child: Row(
+                        children: [
+                          Text(
+                            chat.contacts.firstWhere(
+                                      (c) => c['username'] == username,
+                                      orElse: () => {},
+                                    )['fullName']
+                                    as String? ??
+                                username,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          const SizedBox(width: 5),
+                          const Icon(LegacyIcons.close, size: 17),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        Row(
+          children: [
+            Expanded(
+              child: SizedBox(
+                height: 45,
+                child: LegacyFieldSurface(
+                  child: TextField(
+                    controller: groupName,
+                    enabled: !creatingGroup,
+                    maxLength: 80,
+                    onChanged: (_) => setState(() {}),
+                    onSubmitted: (_) => unawaited(createGroup()),
+                    decoration: const InputDecoration(
+                      hintText: 'Group name',
+                      counterText: '',
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 9),
+            LegacyIconButton(
+              icon: creatingGroup ? LegacyIcons.refresh : LegacyIcons.send,
+              tooltip: 'Create group',
+              primary: true,
+              size: 45,
+              onPressed:
+                  creatingGroup ||
+                      selectedMembers.length < 2 ||
+                      groupName.text.trim().isEmpty
+                  ? null
+                  : () => unawaited(createGroup()),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+  Future<void> createGroup() async {
+    if (creatingGroup ||
+        selectedMembers.length < 2 ||
+        groupName.text.trim().isEmpty) {
+      return;
+    }
+    setState(() => creatingGroup = true);
+    await run(() async {
+      await chat.createGroup(groupName.text, selectedMembers.toList());
+      if (mounted) {
+        changePanel(0);
+        notice('Group created.');
+      }
+    });
+    if (mounted) setState(() => creatingGroup = false);
+  }
+
   Widget avatar(String name) => ProfileAvatar(name: name);
-  String name(Json c) => (c['peerFullName'] as String?)?.isNotEmpty == true
+  String name(Json c) => c['type'] == 'Group'
+      ? c['name'] as String? ?? c['peerFullName'] as String? ?? 'Untitled group'
+      : (c['peerFullName'] as String?)?.isNotEmpty == true
       ? c['peerFullName'] as String
       : c['peerUsername'] as String? ?? '';
   void changePanel(int value) => setState(() {
     panel = value;
+    groupMode = false;
+    selectedMembers.clear();
+    groupName.clear();
     search.clear();
   });
 
@@ -629,6 +761,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     (label: 'New chat', action: () => changePanel(1)),
     (label: 'Call history', action: () => changePanel(2)),
     (label: 'Refresh', action: () => unawaited(run(chat.reconnect))),
+    (label: 'Mark all as read', action: () => unawaited(run(chat.markAllRead))),
     if (PushService.supported)
       (
         label: 'Enable notifications',
@@ -749,7 +882,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            panel == 1 ? 'New chat' : 'Call history',
+                            panel == 1
+                                ? (groupMode ? 'New group' : 'New chat')
+                                : 'Call history',
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
@@ -758,7 +893,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           ),
                           Text(
                             panel == 1
-                                ? 'Pick someone to message'
+                                ? (groupMode
+                                      ? (selectedMembers.isEmpty
+                                            ? 'Select at least 2 people'
+                                            : '${selectedMembers.length} selected · 50 members max')
+                                      : 'Pick someone to message')
                                 : 'Incoming and outgoing calls',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -779,7 +918,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     else
                       LegacyMenu(
                         tooltip: 'New chat options',
-                        items: accountMenu(),
+                        items: [
+                          (
+                            label: groupMode
+                                ? 'New direct chat'
+                                : 'Create a group',
+                            action: () => setGroupMode(!groupMode),
+                          ),
+                          (
+                            label: 'Refresh',
+                            action: () => unawaited(run(chat.refresh)),
+                          ),
+                        ],
                       ),
                   ],
                 ],
@@ -801,7 +951,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     onChanged: (_) => setState(() {}),
                     decoration: InputDecoration(
                       hintText: panel == 1
-                          ? 'Search name or number'
+                          ? (groupMode
+                                ? 'Search people'
+                                : 'Search name or number')
                           : 'Search or start a new chat',
                       prefixIcon: const Icon(
                         LegacyIcons.search,
@@ -856,6 +1008,24 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 ],
               ),
             ),
+          if (panel == 1 &&
+              !groupMode &&
+              query.isEmpty &&
+              chat.contacts.length >= 2)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 9),
+              child: chatRow(
+                label: 'Create a group',
+                groupEntry: true,
+                subtitle: 'Bring drivers and dispatchers together',
+                leading: const ProfileAvatar(name: 'Group', group: true),
+                trailing: const Icon(
+                  LegacyIcons.chevron_right,
+                  color: LegacyStyle.muted,
+                ),
+                onTap: () => setGroupMode(true),
+              ),
+            ),
           Expanded(
             child: panel == 2
                 ? ListView(
@@ -875,10 +1045,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         ),
                       for (final c in chat.calls)
                         chatRow(
-                          label: c['peerUsername'] as String,
+                          label: c['isGroup'] == true
+                              ? c['conversationName'] as String? ?? 'Group call'
+                              : c['peerUsername'] as String,
                           subtitle:
                               '${c['outgoing'] == true ? 'Outgoing' : 'Incoming'} · ${c['status']}${c['duration'] == null ? '' : ' · ${c['duration']} sec'}',
-                          leading: avatar(c['peerUsername'] as String),
+                          leading: ProfileAvatar(
+                            name: c['peerUsername'] as String,
+                            group: c['isGroup'] == true,
+                          ),
                           trailing: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -899,12 +1074,22 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                             ],
                           ),
                           onTap: () => unawaited(
-                            run(
-                              () => call.start(
-                                c['peerUsername'] as String,
-                                c['callType'] == 'Video',
-                              ),
-                            ),
+                            run(() async {
+                              if (c['isGroup'] == true) {
+                                await chat.openNotification(
+                                  conversationId: c['conversationId'] as String,
+                                );
+                                await call.startConversation(
+                                  chat.selected!,
+                                  c['callType'] == 'Video',
+                                );
+                              } else {
+                                await call.start(
+                                  c['peerUsername'] as String,
+                                  c['callType'] == 'Video',
+                                );
+                              }
+                            }),
                           ),
                         ),
                     ],
@@ -963,9 +1148,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                             ? '${c['username']} · ${c['status']}'
                             : c['lastMessage'] as String? ??
                                   'Start the conversation',
-                        selected: panel == 0 && c['id'] == chat.selected?['id'],
+                        memberSelection: panel == 1 && groupMode,
+                        selected: panel == 0
+                            ? (c['id'] == chat.selected?['id'])
+                            : groupMode &&
+                                  selectedMembers.contains(c['username']),
                         leading: ProfileAvatar(
                           name: label,
+                          group: panel == 0 && c['type'] == 'Group',
+                          memberCount: panel == 0 && c['type'] == 'Group'
+                              ? c['memberCount'] as int?
+                              : null,
                           colorKey:
                               (panel == 1 ? c['username'] : c['peerUsername'])
                                   as String?,
@@ -1016,9 +1209,24 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                   ],
                                 ],
                               )
+                            : groupMode
+                            ? Icon(
+                                selectedMembers.contains(c['username'])
+                                    ? LegacyIcons.check_circle
+                                    : LegacyIcons.radio_button_unchecked,
+                                color: selectedMembers.contains(c['username'])
+                                    ? LegacyStyle.accent
+                                    : LegacyStyle.muted,
+                              )
                             : null,
                         onTap: () => unawaited(
                           run(() async {
+                            if (panel == 1 && groupMode) {
+                              if (!creatingGroup) {
+                                toggleMember(c['username'] as String);
+                              }
+                              return;
+                            }
                             if (recording) await cancelVoice();
                             composer.clear();
                             if (panel == 1) {
@@ -1033,6 +1241,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     },
                   ),
           ),
+          if (panel == 1 && groupMode) groupFooter(),
           if (chat.connection != 'Connected')
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
@@ -1074,12 +1283,30 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     required Widget leading,
     Widget? trailing,
     bool selected = false,
+    bool memberSelection = false,
+    bool groupEntry = false,
     required VoidCallback onTap,
   }) => CustomPaint(
-    foregroundPainter: selected ? const LegacySelectionMarker() : null,
+    foregroundPainter: selected && !memberSelection
+        ? const LegacySelectionMarker()
+        : null,
     child: Container(
       margin: const EdgeInsets.symmetric(vertical: 2),
-      decoration: selected
+      decoration: groupEntry
+          ? BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xfff5f3ff), Color(0xffeef5ff)],
+              ),
+              border: Border.all(color: const Color(0xffddd6fe)),
+              borderRadius: BorderRadius.circular(16),
+            )
+          : selected && memberSelection
+          ? BoxDecoration(
+              color: const Color(0xffeff6ff),
+              border: Border.all(color: const Color(0xffbfdbfe)),
+              borderRadius: BorderRadius.circular(16),
+            )
+          : selected
           ? BoxDecoration(
               gradient: const LinearGradient(
                 colors: [Color(0xffedf4ff), Color(0xfff8fbff)],
@@ -1238,6 +1465,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   name: c == null ? 'TMS' : name(c),
                   initials: c == null ? 'TMS' : null,
                   colorKey: c?['peerUsername'] as String?,
+                  group: c?['type'] == 'Group',
                   radius: 22,
                 ),
                 const SizedBox(width: 14),
@@ -1259,9 +1487,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       Text(
                         c == null
                             ? 'Choose a conversation to get started'
+                            : c['type'] == 'Group'
+                            ? '${c['memberCount']} members'
                             : c['peerStatus'] == 'Online'
                             ? '● Online now'
-                            : c['peerStatus'] as String? ?? 'Offline',
+                            : 'Available for messages',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -1282,10 +1512,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   onPressed: c == null || recording
                       ? null
                       : () => unawaited(
-                          run(
-                            () =>
-                                call.start(c['peerUsername'] as String, false),
-                          ),
+                          run(() => call.startConversation(c, false)),
                         ),
                 ),
                 SizedBox(width: wide ? 14 : 8),
@@ -1296,9 +1523,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   onPressed: c == null || recording
                       ? null
                       : () => unawaited(
-                          run(
-                            () => call.start(c['peerUsername'] as String, true),
-                          ),
+                          run(() => call.startConversation(c, true)),
                         ),
                 ),
                 SizedBox(width: wide ? 14 : 8),
@@ -1307,7 +1532,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   items: [
                     if (c != null)
                       (
-                        label: 'Leave conversation',
+                        label: 'Refresh',
+                        action: () => unawaited(run(() => chat.open(c))),
+                      ),
+                    if (c != null)
+                      (
+                        label: c['type'] == 'Group'
+                            ? 'Leave group'
+                            : 'Leave conversation',
                         action: () => unawaited(leaveConversation()),
                       ),
                     (label: 'New chat', action: () => changePanel(1)),
@@ -1340,14 +1572,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                   84,
                                 )
                               : bounds.maxWidth * .04,
-                          22,
+                          wide ? 22 : 16,
                           wide
                               ? (MediaQuery.sizeOf(context).width * .06).clamp(
                                   18,
                                   84,
                                 )
                               : bounds.maxWidth * .04,
-                          26,
+                          wide ? 26 : 20,
                         ),
                         itemCount: chat.messages.length + 1,
                         itemBuilder: (_, index) {
@@ -1408,18 +1640,22 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                     ),
                                     borderRadius: BorderRadius.circular(999),
                                   ),
-                                  child: const Row(
+                                  child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Icon(
-                                        LegacyIcons.lock,
+                                        c['type'] == 'Group'
+                                            ? LegacyIcons.groups
+                                            : LegacyIcons.lock,
                                         size: 15,
                                         color: LegacyStyle.accentDark,
                                       ),
                                       SizedBox(width: 6),
                                       Flexible(
                                         child: Text(
-                                          'Messages are private and secure.',
+                                          c['type'] == 'Group'
+                                              ? 'Messages are shared with group members.'
+                                              : 'Messages are private and secure.',
                                           style: TextStyle(
                                             fontSize: 12.2,
                                             height: 1.5,
@@ -1444,6 +1680,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                       children: [
                                         ProfileAvatar(
                                           name: name(c),
+                                          group: c['type'] == 'Group',
                                           colorKey:
                                               c['peerUsername'] as String?,
                                           radius: 36,
@@ -1457,8 +1694,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                           ),
                                         ),
                                         const SizedBox(height: 3),
-                                        const Text(
-                                          'This is the beginning of your conversation.',
+                                        Text(
+                                          c['type'] == 'Group'
+                                              ? 'This is the beginning of this group.'
+                                              : 'This is the beginning of your conversation.',
                                           textAlign: TextAlign.center,
                                           style: TextStyle(
                                             fontSize: 13,
@@ -1476,12 +1715,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           return MessageBubble(
                             key: ValueKey(m['id']),
                             message: m,
+                            group: c['type'] == 'Group',
                             firstInRun:
                                 index == chat.messages.length - 1 ||
                                 chat.messages[chat.messages.length -
                                         2 -
                                         index]['mine'] !=
-                                    m['mine'],
+                                    m['mine'] ||
+                                chat.messages[chat.messages.length -
+                                        2 -
+                                        index]['sender'] !=
+                                    m['sender'],
                             api: widget.api,
                             onError: notice,
                           );
@@ -1700,6 +1944,208 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     );
   }
 
+  Widget groupCallView() {
+    final people =
+        <({String name, RTCVideoRenderer renderer, bool camera, bool local})>[
+          (name: 'You', renderer: call.local, camera: call.camera, local: true),
+          for (final entry in call.participants.entries)
+            (
+              name: entry.key,
+              renderer: entry.value.renderer,
+              camera: entry.value.camera,
+              local: false,
+            ),
+        ];
+    Widget personTile(int index) {
+      final person = people[index];
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(
+              color: const Color(0xff102a43),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ProfileAvatar(
+                    name: person.name,
+                    colorKey: person.name,
+                    radius: 34,
+                  ),
+                  const SizedBox(height: 9),
+                  const Text(
+                    'Camera off',
+                    style: TextStyle(color: Color(0xffa9c4df), fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            if (person.camera && person.renderer.srcObject != null)
+              RTCVideoView(
+                person.renderer,
+                mirror: person.local,
+                objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+              ),
+            Positioned(
+              left: 10,
+              bottom: 9,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xa8020b18),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  person.name,
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (call.video) {
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              children: [
+                Text(
+                  call.displayName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 25,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  call.status,
+                  style: const TextStyle(color: Color(0xffbfd5ed)),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: GridView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: MediaQuery.sizeOf(context).width > 900 ? 3 : 2,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 1.1,
+              ),
+              itemCount: people.length,
+              itemBuilder: (_, i) => personTile(i),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            child: callControls(dark: true),
+          ),
+        ],
+      );
+    }
+    return Center(
+      child: SingleChildScrollView(
+        child: Container(
+          width: compactCall ? double.infinity : 560,
+          constraints: BoxConstraints(
+            minHeight: compactCall
+                ? MediaQuery.sizeOf(context).height -
+                      MediaQuery.paddingOf(context).vertical
+                : 460,
+          ),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(compactCall ? 0 : 22),
+            gradient: const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Colors.white, Color(0xffeaf2ff)],
+            ),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const SizedBox(height: 12),
+              ProfileAvatar(name: call.displayName, group: true, radius: 48),
+              const SizedBox(height: 18),
+              Text(
+                call.displayName,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 25,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                call.status,
+                style: const TextStyle(color: LegacyStyle.muted),
+              ),
+              const SizedBox(height: 20),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xffeff6ff),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xffdbe8f6)),
+                ),
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    for (final person in people)
+                      SizedBox(
+                        width: 74,
+                        child: Column(
+                          children: [
+                            ProfileAvatar(
+                              name: person.name,
+                              radius: 27,
+                              profile: true,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              person.name,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Color(0xff34516f),
+                              ),
+                            ),
+                            // On web the renderer element must be mounted for remote audio playback.
+                            if (!person.local)
+                              SizedBox(
+                                width: 1,
+                                height: 1,
+                                child: RTCVideoView(person.renderer),
+                              ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 22),
+              const Text(
+                'Group voice call',
+                style: TextStyle(color: LegacyStyle.muted, fontSize: 12),
+              ),
+              const SizedBox(height: 22),
+              callControls(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   bool get compactCall => MediaQuery.sizeOf(context).width <= 600;
 
   Widget callOverlay() => Positioned.fill(
@@ -1765,7 +2211,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                   ),
                                 ),
                                 child: ProfileAvatar(
-                                  name: call.peer!,
+                                  name: call.displayName,
+                                  group: call.group,
                                   radius:
                                       (bounds.maxWidth * .28).clamp(116, 148) /
                                       2,
@@ -1773,7 +2220,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                               ),
                               const SizedBox(height: 24),
                               Text(
-                                call.peer!,
+                                call.displayName,
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   color: Colors.white,
@@ -1787,7 +2234,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                call.video ? 'Video call' : 'Voice call',
+                                call.group
+                                    ? (call.video
+                                          ? 'Incoming group video call'
+                                          : 'Incoming group voice call')
+                                    : (call.video
+                                          ? 'Video call'
+                                          : 'Voice call'),
                                 style: const TextStyle(
                                   color: Color(0xffbfdbfe),
                                   fontSize: 17,
@@ -1860,6 +2313,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       ),
                     ),
                   )
+                : call.group
+                ? groupCallView()
                 : call.video
                 ? Stack(
                     children: [
@@ -1878,7 +2333,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              call.peer!,
+                              call.displayName,
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 25,
@@ -1967,10 +2422,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                               : MainAxisAlignment.start,
                           children: [
                             const SizedBox(height: 35),
-                            ProfileAvatar(name: call.peer!, radius: 48),
+                            ProfileAvatar(name: call.displayName, radius: 48),
                             const SizedBox(height: 18),
                             Text(
-                              call.peer!,
+                              call.displayName,
                               textAlign: TextAlign.center,
                               style: const TextStyle(
                                 fontSize: 25,
@@ -2114,12 +2569,14 @@ class MessageBubble extends StatefulWidget {
   final Json message;
   final Api api;
   final bool firstInRun;
+  final bool group;
   final void Function(String) onError;
   const MessageBubble({
     super.key,
     required this.message,
     required this.api,
     this.firstInRun = true,
+    this.group = false,
     required this.onError,
   });
   @override
@@ -2127,21 +2584,12 @@ class MessageBubble extends StatefulWidget {
 }
 
 class _MessageBubbleState extends State<MessageBubble> {
-  final player = AudioPlayer();
+  AudioPlayer? _player;
   StreamSubscription<PlayerState>? playback;
   Future<Uint8List>? preview;
   @override
   void initState() {
     super.initState();
-    playback = player.playerStateStream.listen((state) {
-      if (mounted) {
-        setState(
-          () => playing =
-              state.playing &&
-              state.processingState != ProcessingState.completed,
-        );
-      }
-    });
     final a = widget.message['attachment'] as Map?;
     if (a != null &&
         [
@@ -2157,12 +2605,28 @@ class _MessageBubbleState extends State<MessageBubble> {
     }
   }
 
+  AudioPlayer get player {
+    if (_player == null) {
+      _player = AudioPlayer();
+      playback = _player!.playerStateStream.listen((state) {
+        if (mounted) {
+          setState(
+            () => playing =
+                state.playing &&
+                state.processingState != ProcessingState.completed,
+          );
+        }
+      });
+    }
+    return _player!;
+  }
+
   Uint8List? bytes;
   bool busy = false, playing = false;
   @override
   void dispose() {
     unawaited(playback?.cancel());
-    unawaited(player.dispose());
+    unawaited(_player?.dispose());
     super.dispose();
   }
 
@@ -2172,6 +2636,7 @@ class _MessageBubbleState extends State<MessageBubble> {
     try {
       final a = widget.message['attachment'] as Map;
       bytes ??= await widget.api.download(a['url'] as String);
+      if (!mounted) return;
       if (play) {
         if (playing) {
           await player.pause();
@@ -2240,12 +2705,10 @@ class _MessageBubbleState extends State<MessageBubble> {
                       colors: [Color(0xff3475ed), LegacyStyle.accent],
                     )
                   : null,
-              border: Border.all(
-                color: mine ? const Color(0xff2d65dc) : const Color(0xffe3eaf2),
-              ),
+
               borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(!mine && widget.firstInRun ? 5 : 18),
-                topRight: Radius.circular(mine && widget.firstInRun ? 5 : 18),
+                topLeft: Radius.circular(!mine && widget.firstInRun ? 0 : 18),
+                topRight: Radius.circular(mine && widget.firstInRun ? 0 : 18),
                 bottomLeft: const Radius.circular(18),
                 bottomRight: const Radius.circular(18),
               ),
@@ -2259,127 +2722,141 @@ class _MessageBubbleState extends State<MessageBubble> {
                 ),
               ],
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (preview != null)
-                  FutureBuilder<Uint8List>(
-                    future: preview,
-                    builder: (context, snapshot) {
-                      if (snapshot.hasError) {
-                        return Text(
-                          'Image unavailable. Use Download to retry.',
-                          style: TextStyle(color: foreground),
-                        );
-                      }
-                      if (!snapshot.hasData) {
-                        return const SizedBox(
-                          width: 180,
-                          height: 100,
-                          child: Center(
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        );
-                      }
-                      return ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: Image.memory(
-                          snapshot.data!,
-                          width: 260,
-                          height: 180,
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, error, stack) => Text(
-                            'Cannot preview this image.',
-                            style: TextStyle(color: foreground),
-                          ),
+            child: IntrinsicWidth(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (widget.group && !mine && widget.firstInRun)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        m['sender'] as String? ?? 'Group member',
+                        style: const TextStyle(
+                          color: Color(0xff4f46e5),
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
                         ),
-                      );
-                    },
-                  ),
-                if (m['text'] != null && (m['text'] as String).isNotEmpty)
-                  SelectableText(
-                    m['text'] as String,
-                    style: TextStyle(
-                      fontSize: 14.5,
-                      height: 1.48,
-                      color: foreground,
+                      ),
                     ),
-                  ),
-                if (a != null)
-                  Wrap(
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      if (audio)
-                        LegacyIconButton(
-                          tooltip: playing
-                              ? 'Pause voice note'
-                              : 'Play voice note',
+                  if (preview != null)
+                    FutureBuilder<Uint8List>(
+                      future: preview,
+                      builder: (context, snapshot) {
+                        if (snapshot.hasError) {
+                          return Text(
+                            'Image unavailable. Use Download to retry.',
+                            style: TextStyle(color: foreground),
+                          );
+                        }
+                        if (!snapshot.hasData) {
+                          return const SizedBox(
+                            width: 180,
+                            height: 100,
+                            child: Center(
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          );
+                        }
+                        return ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Image.memory(
+                            snapshot.data!,
+                            width: 260,
+                            height: 180,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, error, stack) => Text(
+                              'Cannot preview this image.',
+                              style: TextStyle(color: foreground),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  if (m['text'] != null && (m['text'] as String).isNotEmpty)
+                    SelectableText(
+                      m['text'] as String,
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        height: 1.48,
+                        color: foreground,
+                      ),
+                    ),
+                  if (a != null)
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        if (audio)
+                          LegacyIconButton(
+                            tooltip: playing
+                                ? 'Pause voice note'
+                                : 'Play voice note',
+                            onPressed: busy
+                                ? null
+                                : () => unawaited(attachment(true)),
+                            icon: playing
+                                ? LegacyIcons.pause
+                                : LegacyIcons.play_arrow,
+                            foreground: foreground,
+                          ),
+                        LegacyButton(
                           onPressed: busy
                               ? null
-                              : () => unawaited(attachment(true)),
-                          icon: playing
-                              ? LegacyIcons.pause
-                              : LegacyIcons.play_arrow,
+                              : () => unawaited(attachment(false)),
+                          tooltip: 'Download attachment',
                           foreground: foreground,
-                        ),
-                      LegacyButton(
-                        onPressed: busy
-                            ? null
-                            : () => unawaited(attachment(false)),
-                        tooltip: 'Download attachment',
-                        foreground: foreground,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 4,
-                          vertical: 8,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(LegacyIcons.download, size: 20),
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: Text(
-                                busy ? 'Loading…' : a['fileName'] as String,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 8,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(LegacyIcons.download, size: 20),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  busy ? 'Loading…' : a['fileName'] as String,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  const SizedBox(height: 5),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Text(
+                        messageTime(m['createdAt']),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: mine
+                              ? const Color(0xffdbeafe)
+                              : LegacyStyle.muted,
                         ),
                       ),
+                      if (mine) ...[
+                        const SizedBox(width: 3),
+                        Semantics(
+                          label: m['read'] == true ? 'Read' : 'Sent',
+                          child: Icon(
+                            m['read'] == true
+                                ? LegacyIcons.done_all
+                                : LegacyIcons.done,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
-                const SizedBox(height: 5),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Text(
-                      messageTime(m['createdAt']),
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: mine
-                            ? const Color(0xffdbeafe)
-                            : LegacyStyle.muted,
-                      ),
-                    ),
-                    if (mine) ...[
-                      const SizedBox(width: 3),
-                      Semantics(
-                        label: m['read'] == true ? 'Read' : 'Sent',
-                        child: Icon(
-                          m['read'] == true
-                              ? LegacyIcons.done_all
-                              : LegacyIcons.done,
-                          size: 16,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

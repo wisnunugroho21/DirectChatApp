@@ -15,6 +15,7 @@ public record DeclineCallRequest(string? DeviceToken);
 public class CallsController(
     UserService users,
     CallService calls,
+    GroupCallRegistry groupCalls,
     IHubContext<ChatHubs> hub) : ControllerBase
 {
     /// <summary>Riwayat panggilan masuk dan keluar milik user yang sedang login.</summary>
@@ -42,6 +43,11 @@ public class CallsController(
 
         var call = await calls.GetRingingForReceiverAsync(me.Id, cancellationToken);
         if (call is null) return Ok(new { ringing = false });
+        if (call.GroupCallId != null) {
+            await groupCalls.Gate.WaitAsync(cancellationToken);
+            try { if (!groupCalls.Rooms.ContainsKey(call.GroupCallId)) return Ok(new { ringing = false }); }
+            finally { groupCalls.Gate.Release(); }
+        }
 
         var caller = (await users.GetByIdsAsync([call.CallerId])).FirstOrDefault();
         if (caller is null) return Ok(new { ringing = false });
@@ -50,6 +56,8 @@ public class CallsController(
         {
             ringing = true,
             callId = call.Id.ToString(),
+            isGroup = call.GroupCallId != null, groupCallId = call.GroupCallId,
+            conversationId = call.ConversationId, conversationName = call.ConversationName, memberCount = call.MemberCount,
             callerUsername = caller.Username,
             callerName = string.IsNullOrWhiteSpace(caller.FullName) ? caller.Username : caller.FullName,
             callType = call.CallType,
@@ -76,6 +84,21 @@ public class CallsController(
         // Hanya penerima panggilan yang boleh menolaknya.
         if (call.ReceiverId != receiverId.Value) return Forbid();
 
+        if (call.GroupCallId != null) {
+            await groupCalls.Gate.WaitAsync(cancellationToken);
+            try {
+                if (groupCalls.Rooms.TryGetValue(call.GroupCallId, out var room)) {
+                    var member = room.Members.FirstOrDefault(u => u.Id == receiverId.Value);
+                    if (member is null) return Forbid();
+                    if (room.Joined.Contains(member.Username)) return Conflict(new { message = "Call was already accepted." });
+                    room.Declined.Add(member.Username);
+                    await hub.Clients.Users(room.Joined.ToArray()).SendAsync("GroupParticipantDeclined", room.Id, member.Username, cancellationToken);
+                    await hub.Clients.User(member.Username).SendAsync("GroupCallEnded", room.Id, member.Username, cancellationToken);
+                }
+                await calls.MarkRejectedByIdAsync(callId, cancellationToken);
+                return NoContent();
+            } finally { groupCalls.Gate.Release(); }
+        }
         await calls.MarkRejectedByIdAsync(callId, cancellationToken);
 
         var participants = await users.GetByIdsAsync([call.CallerId, call.ReceiverId]);

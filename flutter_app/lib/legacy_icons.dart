@@ -4,6 +4,14 @@ import 'package:flutter/widgets.dart';
 // Same Material Symbols Outlined font loaded by Legacy/Pages/Shared/_Layout.cshtml.
 // Bundled locally so icon appearance does not depend on a Google Fonts request.
 abstract final class LegacyIcons {
+  static const chevron_right = IconData(0xe5cc, fontFamily: 'LegacySymbols');
+  static const radio_button_unchecked = IconData(
+    0xe836,
+    fontFamily: 'LegacySymbols',
+  );
+  static const check_circle = IconData(0xf0be, fontFamily: 'LegacySymbols');
+  static const group_add = IconData(0xe7f0, fontFamily: 'LegacySymbols');
+  static const groups = IconData(0xf233, fontFamily: 'LegacySymbols');
   static const add_comment = IconData(0xe266, fontFamily: 'LegacySymbols');
   static const attach_file = IconData(0xe226, fontFamily: 'LegacySymbols');
   static const call = IconData(0xf0d4, fontFamily: 'LegacySymbols');
