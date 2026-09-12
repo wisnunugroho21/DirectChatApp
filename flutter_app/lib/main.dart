@@ -493,9 +493,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   Future<void> recoverCall() async {
-    if (call.peer != null) return;
+    if (call.peer != null || call.closing) return;
     final ringing = await widget.api.request('GET', '/api/calls/ringing');
-    if (ringing['ringing'] != true) return;
+    if (!mounted ||
+        call.peer != null ||
+        call.closing ||
+        ringing['ringing'] != true) {
+      return;
+    }
     call.peer = ringing['callerUsername'];
     call.group = ringing['isGroup'] == true;
     call.groupId = ringing['groupCallId'];
@@ -2094,7 +2099,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     icon: LegacyIcons.call,
                     label: 'Accept',
                     tooltip: 'Accept call',
-                    onPressed: () => unawaited(run(call.accept)),
+                    onPressed: call.accepting
+                        ? null
+                        : () => unawaited(run(call.accept)),
                     background: const Color(0xff16a34a),
                   ),
                 ],

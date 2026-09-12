@@ -15,7 +15,13 @@ class GroupPeer {
 
 class CallService extends ChangeNotifier {
   final ChatStore chat;
-  final local = RTCVideoRenderer(), remote = RTCVideoRenderer();
+  final RTCVideoRenderer local, remote;
+  final Future<MediaStream> Function(Map<String, dynamic>) _getUserMedia;
+  final Future<RTCPeerConnection> Function(Map<String, dynamic>) _createPeer;
+  Future<void>? _mediaTask, _ending;
+  int _generation = 0;
+  bool accepting = false;
+  bool get closing => _ending != null;
   String? groupId, groupName, groupConversationId;
   bool group = false;
   final participants = <String, GroupPeer>{};
@@ -34,7 +40,51 @@ class CallService extends ChangeNotifier {
   bool _remoteReady = false, _disposed = false;
   Timer? _timeout;
   Future<void> _queue = Future.value();
-  CallService(this.chat);
+  CallService(
+    this.chat, {
+    Future<MediaStream> Function(Map<String, dynamic>)? getUserMedia,
+    Future<RTCPeerConnection> Function(Map<String, dynamic>)? createPeer,
+    RTCVideoRenderer? localRenderer,
+    RTCVideoRenderer? remoteRenderer,
+  }) : _getUserMedia = getUserMedia ?? navigator.mediaDevices.getUserMedia,
+       _createPeer = createPeer ?? ((config) => createPeerConnection(config)),
+       local = localRenderer ?? RTCVideoRenderer(),
+       remote = remoteRenderer ?? RTCVideoRenderer();
+
+  static String mediaError(Object cause) {
+    final text = cause.toString().toLowerCase();
+    if (text.contains('notreadable') ||
+        text.contains('not readable') ||
+        text.contains('device in use') ||
+        text.contains('could not start video')) {
+      return 'The camera or microphone is unavailable or already in use. Close other camera apps or call tabs, then try again. If testing two callers, use separate devices.';
+    }
+    if (text.contains('notallowed') || text.contains('permission denied')) {
+      return 'Camera or microphone access was denied. Allow access in your browser or device settings, then try again.';
+    }
+    if (text.contains('notfound') || text.contains('device not found')) {
+      return 'No camera or microphone was found. Connect a device and try again.';
+    }
+    return 'Could not open the camera or microphone: $cause';
+  }
+
+  Future<void> _releaseStream(MediaStream stream) async {
+    Object? failure;
+    for (final track in stream.getTracks()) {
+      try {
+        await track.stop();
+      } catch (e) {
+        failure ??= e;
+      }
+    }
+    try {
+      await stream.dispose();
+    } catch (e) {
+      failure ??= e;
+    }
+    if (failure != null) throw failure;
+  }
+
   void changed() {
     if (!_disposed) notifyListeners();
   }
@@ -53,6 +103,8 @@ class CallService extends ChangeNotifier {
     }
 
     on('IncomingGroupCall', (a) async {
+      await _ending;
+      if (_disposed) return;
       if (peer != null) {
         await chat.hub.invoke('RejectGroupCall', args: [a[2] as String]);
         return;
@@ -157,6 +209,8 @@ class CallService extends ChangeNotifier {
       if (groupId == a[0]) await end(notifyPeer: false);
     });
     on('IncomingCall', (a) async {
+      await _ending;
+      if (_disposed) return;
       if (peer != null) {
         await chat.hub.invoke('RejectCall', args: [a[0] as String]);
         return;
@@ -299,6 +353,8 @@ class CallService extends ChangeNotifier {
   }
 
   Future<void> startConversation(Json conversation, bool withVideo) async {
+    await _ending;
+    if (_disposed) return;
     if (conversation['type'] != 'Group') {
       await start(conversation['peerUsername'] as String, withVideo);
       return;
@@ -344,28 +400,49 @@ class CallService extends ChangeNotifier {
     }
   }
 
-  Future<void> media() async {
+  Future<void> media() {
+    if (_mediaTask != null) return _mediaTask!;
+    if (_stream != null || peer == null || _disposed || closing) {
+      return Future.value();
+    }
+    final task = _openMedia(_generation);
+    _mediaTask = task;
+    return task.whenComplete(() {
+      if (identical(_mediaTask, task)) _mediaTask = null;
+    });
+  }
+
+  Future<void> _openMedia(int generation) async {
+    bool current() =>
+        generation == _generation && peer != null && !_disposed && !closing;
     final config = Json.from(
       await chat.api.request('GET', '/api/webrtc/config') as Map,
     );
+    if (!current()) return;
     _config = config;
-    final stream = await navigator.mediaDevices.getUserMedia({
-      'audio': true,
-      'video': video,
-    });
-    if (peer == null || _disposed) {
-      for (final track in stream.getTracks()) {
-        await track.stop();
-      }
-      await stream.dispose();
+    MediaStream stream;
+    try {
+      stream = await _getUserMedia({'audio': true, 'video': video});
+    } catch (e) {
+      if (!current()) return;
+      throw StateError(mediaError(e));
+    }
+    if (!current()) {
+      await _releaseStream(stream);
       return;
     }
     _stream = stream;
-    local.srcObject = _stream;
+    local.srcObject = stream;
     if (group) return;
-    _pc = await createPeerConnection(config);
-    for (final track in _stream!.getTracks()) {
-      await _pc!.addTrack(track, _stream!);
+    final pc = await _createPeer(config);
+    if (!current()) {
+      await pc.close();
+      return;
+    }
+    _pc = pc;
+    for (final track in stream.getTracks()) {
+      await pc.addTrack(track, stream);
+      if (!current()) return;
     }
     _pc!.onTrack = (event) {
       if (event.streams.isNotEmpty) {
@@ -398,6 +475,8 @@ class CallService extends ChangeNotifier {
   }
 
   Future<void> start(String username, bool withVideo) async {
+    await _ending;
+    if (_disposed) return;
     if (peer != null) return;
     peer = username;
     video = withVideo;
@@ -407,6 +486,7 @@ class CallService extends ChangeNotifier {
     changed();
     try {
       await media();
+      if (peer == null || _disposed) return;
       await chat.hub.invoke(
         'CallUser',
         args: [username, withVideo ? 'Video' : 'Audio'],
@@ -420,7 +500,8 @@ class CallService extends ChangeNotifier {
   }
 
   Future<void> accept() async {
-    if (!incoming || peer == null) return;
+    if (!incoming || peer == null || accepting || closing || _disposed) return;
+    accepting = true;
     _timeout?.cancel();
     status = 'Connecting';
     changed();
@@ -437,38 +518,84 @@ class CallService extends ChangeNotifier {
       error = e.toString();
       await end();
       rethrow;
+    } finally {
+      accepting = false;
+      changed();
     }
   }
 
-  Future<void> end({bool notifyPeer = true}) async {
+  Future<void> end({bool notifyPeer = true}) {
+    if (_ending != null) return _ending!;
+    final completion = Completer<void>();
+    _ending = completion.future;
+    unawaited(
+      _finishEnd(notifyPeer: notifyPeer).then(
+        (_) {
+          _ending = null;
+          completion.complete();
+        },
+        onError: (Object e, StackTrace stack) {
+          _ending = null;
+          completion.completeError(e, stack);
+        },
+      ),
+    );
+    return completion.future;
+  }
+
+  Future<void> _finishEnd({required bool notifyPeer}) async {
     final target = peer;
     final room = groupId;
     final wasGroup = group;
+    final wasIncoming = incoming;
+    ++_generation;
+    peer = null;
+    incoming = false;
+    accepting = false;
     groupId = null;
     group = false;
     groupName = null;
     groupConversationId = null;
-    for (final username in participants.keys.toList()) {
-      await removeGroupPeer(username);
-    }
-    final wasIncoming = incoming;
-    peer = null;
-    incoming = false;
     _timeout?.cancel();
+    changed();
+    // getUserMedia cannot be cancelled. Wait for a late stream to be stopped
+    // before allowing another call to acquire the same camera.
+    try {
+      await _mediaTask;
+    } catch (_) {
+      /* The caller reports setup failures. */
+    }
+    Object? cleanupError;
+    Future<void> attempt(Future<void> Function() action) async {
+      try {
+        await action();
+      } catch (e) {
+        cleanupError ??= e;
+      }
+    }
+
+    final stream = _stream;
+    _stream = null;
+    if (stream != null) await attempt(() => _releaseStream(stream));
     final pc = _pc;
     _pc = null;
-    await pc?.close();
-    for (final track in _stream?.getTracks() ?? <MediaStreamTrack>[]) {
-      await track.stop();
+    if (pc != null) await attempt(pc.close);
+    for (final username in participants.keys.toList()) {
+      await attempt(() => removeGroupPeer(username));
     }
-    await _stream?.dispose();
-    _stream = null;
-    local.srcObject = null;
-    remote.srcObject = null;
+    await attempt(() async {
+      local.srcObject = null;
+    });
+    await attempt(() async {
+      remote.srcObject = null;
+    });
     _pending.clear();
     _remoteReady = false;
     muted = false;
     speaker = false;
+    if (cleanupError != null) {
+      error ??= 'Could not completely release call devices: $cleanupError';
+    }
     changed();
     if (notifyPeer && target != null && (!wasGroup || room != null)) {
       await chat.guard(() async {
