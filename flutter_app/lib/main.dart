@@ -183,8 +183,8 @@ class _AuthScreenState extends State<AuthScreen> {
       _ => 'Nickname',
     };
     const border = OutlineInputBorder(
-      borderRadius: BorderRadius.all(Radius.circular(6)),
-      borderSide: BorderSide(color: Color(0xffdee2e6)),
+      borderRadius: BorderRadius.all(Radius.circular(12)),
+      borderSide: BorderSide(color: LegacyStyle.border),
     );
     return Padding(
       padding: EdgeInsets.only(bottom: key == 'confirmPassword' ? 24 : 16),
@@ -212,16 +212,16 @@ class _AuthScreenState extends State<AuthScreen> {
             style: const TextStyle(
               fontFamily: 'Segoe UI',
               fontFamilyFallback: ['Arial'],
-              fontSize: 16,
+              fontSize: 14,
               fontWeight: FontWeight.w400,
               height: 1.5,
-              color: Color(0xff212529),
+              color: LegacyStyle.text,
             ),
             decoration: InputDecoration(
               hintText: hint,
               hintStyle: const TextStyle(
                 fontFamily: 'Segoe UI',
-                fontSize: 16,
+                fontSize: 14,
                 fontWeight: FontWeight.w400,
                 color: Color(0xff6c757d),
               ),
@@ -235,8 +235,8 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
               ),
               contentPadding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 6,
+                horizontal: 14,
+                vertical: 12,
               ),
             ),
             obscureText: password,
@@ -305,7 +305,19 @@ class _AuthScreenState extends State<AuthScreen> {
               style: const TextStyle(
                 fontSize: 28,
                 height: 1.2,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              register
+                  ? 'Join your team and keep every trip connected.'
+                  : 'Welcome back. Your team is a message away.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                height: 1.5,
+                color: LegacyStyle.muted,
               ),
             ),
             const SizedBox(height: 24),
@@ -316,7 +328,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 decoration: BoxDecoration(
                   color: const Color(0xfff8d7da),
                   border: Border.all(color: const Color(0xfff1aeb5)),
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Semantics(
                   liveRegion: true,
@@ -337,8 +349,9 @@ class _AuthScreenState extends State<AuthScreen> {
             if (register) field('confirmPassword', 'Confirm Password'),
             LegacyButton(
               onPressed: busy ? null : submit,
-              background: const Color(0xff0d6efd),
-              radius: 6,
+              background: LegacyStyle.accent,
+              height: 46,
+              radius: 12,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               child: Text(
                 busy
@@ -347,20 +360,20 @@ class _AuthScreenState extends State<AuthScreen> {
                     ? 'Register'
                     : 'Login',
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 14,
                   fontWeight: FontWeight.w400,
                 ),
               ),
             ),
-            if (register) const SizedBox(height: 16),
+            const SizedBox(height: 20),
             Wrap(
-              alignment: register ? WrapAlignment.center : WrapAlignment.start,
+              alignment: WrapAlignment.center,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Text(
                   register
                       ? 'Already have an account? '
-                      : "Doesn't have account? ",
+                      : "New to TMS Connect? ",
                   style: TextStyle(
                     color: register
                         ? const Color(0xff6c757d)
@@ -381,7 +394,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   child: Text(
                     register ? 'Login' : 'Register',
                     style: const TextStyle(
-                      fontSize: 16,
+                      fontSize: 14,
                       fontWeight: FontWeight.w400,
                       decoration: TextDecoration.underline,
                     ),
@@ -1291,7 +1304,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         ? const LegacySelectionMarker()
         : null,
     child: Container(
-      margin: const EdgeInsets.symmetric(vertical: 2),
+      margin: const EdgeInsets.symmetric(vertical: 4),
       decoration: groupEntry
           ? BoxDecoration(
               gradient: const LinearGradient(
@@ -1309,7 +1322,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           : selected
           ? BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xffedf4ff), Color(0xfff8fbff)],
+                colors: [Color(0xffe8f1ff), Color(0xfff2f6ff)],
               ),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: const Color(0xffccddfb)),
@@ -2506,7 +2519,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               if (call.peer != null) callOverlay(),
               if (noticeText != null)
                 Positioned(
-                  bottom: 24,
+                  bottom: call.peer != null ? 108 : 88,
                   left: 16,
                   right: 16,
                   child: Center(
@@ -2518,7 +2531,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       ),
                       decoration: BoxDecoration(
                         color: const Color(0xee102a43),
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0x22ffffff)),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x24102a43),
+                            blurRadius: 24,
+                            offset: Offset(0, 8),
+                          ),
+                        ],
                       ),
                       child: Semantics(
                         liveRegion: true,

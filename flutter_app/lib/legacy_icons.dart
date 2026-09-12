@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 // Same Material Symbols Outlined font loaded by Legacy/Pages/Shared/_Layout.cshtml.
 // Bundled locally so icon appearance does not depend on a Google Fonts request.
 abstract final class LegacyIcons {
+  static const notifications = IconData(0xe7f4, fontFamily: 'LegacySymbols');
   static const chevron_right = IconData(0xe5cc, fontFamily: 'LegacySymbols');
   static const radio_button_unchecked = IconData(
     0xe836,

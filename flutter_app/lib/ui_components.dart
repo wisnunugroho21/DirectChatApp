@@ -70,7 +70,11 @@ class _LegacyButtonState extends State<LegacyButton> {
           onTap: widget.onPressed,
           child: Opacity(
             opacity: enabled ? 1 : .4,
-            child: Container(
+            child: AnimatedContainer(
+              duration: MediaQuery.disableAnimationsOf(context)
+                  ? Duration.zero
+                  : const Duration(milliseconds: 160),
+              curve: Curves.easeOutCubic,
               width: widget.width,
               height: widget.height,
               padding: widget.padding,
@@ -87,8 +91,8 @@ class _LegacyButtonState extends State<LegacyButton> {
                     ? const [
                         BoxShadow(
                           color: Color(0x352563eb),
-                          blurRadius: 18,
-                          offset: Offset(0, 7),
+                          blurRadius: 14,
+                          offset: Offset(0, 4),
                         ),
                       ]
                     : null,
@@ -162,6 +166,18 @@ class LegacyIconButton extends StatelessWidget {
 }
 
 class LegacyMenu extends StatelessWidget {
+  static IconData _menuIcon(String label) {
+    if (label.contains('Refresh')) return LegacyIcons.refresh;
+    if (label.contains('group')) return LegacyIcons.groups;
+    if (label.contains('read')) return LegacyIcons.done_all;
+    if (label.contains('Call')) return LegacyIcons.call;
+    if (label == 'Sign out' || label.startsWith('Leave')) {
+      return LegacyIcons.arrow_left_alt;
+    }
+    if (label.contains('notification')) return LegacyIcons.notifications;
+    return LegacyIcons.chat_add_on;
+  }
+
   final String tooltip;
   final List<({String label, VoidCallback action})> items;
   const LegacyMenu({super.key, required this.tooltip, required this.items});
@@ -225,7 +241,21 @@ class LegacyMenu extends StatelessWidget {
                             },
                             child: Align(
                               alignment: Alignment.centerLeft,
-                              child: Text(item.label),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    _menuIcon(item.label),
+                                    size: 19,
+                                    color:
+                                        item.label == 'Sign out' ||
+                                            item.label.startsWith('Leave')
+                                        ? LegacyStyle.danger
+                                        : LegacyStyle.muted,
+                                  ),
+                                  const SizedBox(width: 11),
+                                  Expanded(child: Text(item.label)),
+                                ],
+                              ),
                             ),
                           ),
                       ],
@@ -281,7 +311,7 @@ class ProfileAvatar extends StatelessWidget {
       [Color(0xff0284c7), Color(0xff7dd3fc)],
       [Color(0xff1e40af), Color(0xff93c5fd)],
     ];
-    final hash = (colorKey ?? '').codeUnits.fold<int>(
+    final hash = (colorKey ?? name).codeUnits.fold<int>(
       0,
       (hash, code) => (hash * 31 + code) & 0xffffffff,
     );
@@ -429,86 +459,88 @@ class AuthLayout extends StatelessWidget {
   const AuthLayout({super.key, required this.child, this.register = false});
   @override
   Widget build(BuildContext context) => Scaffold(
-    backgroundColor: const Color(0xfff8f9fa),
-    body: SafeArea(
-      child: LayoutBuilder(
-        builder: (context, bounds) {
-          final width = bounds.maxWidth;
-          final container = width >= 1400
-              ? 1320.0
-              : width >= 1200
-              ? 1140.0
-              : width >= 992
-              ? 960.0
-              : width >= 768
-              ? 720.0
-              : width >= 576
-              ? 540.0
-              : width;
-          final fraction = width >= 992
-              ? (register ? 5 / 12 : 4 / 12)
-              : width >= 768
-              ? (register ? 7 / 12 : 6 / 12)
-              : width >= 576
-              ? 10 / 12
-              : 1.0;
-          return SingleChildScrollView(
+    body: LegacyChatBackground(
+      child: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, bounds) => SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
             child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: bounds.maxHeight),
+              constraints: BoxConstraints(
+                minHeight: math.max(0, bounds.maxHeight - 64),
+              ),
               child: Center(
-                child: SizedBox(
-                  width: container * fraction,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 16,
-                    ),
-                    child: DefaultTextStyle(
-                      style: const TextStyle(
-                        fontFamily: 'Segoe UI',
-                        fontFamilyFallback: ['Arial'],
-                        fontSize: 16,
-                        height: 1.5,
-                        color: Color(0xff212529),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(24),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(6),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Color(0x13000000),
-                                  blurRadius: 4,
-                                  offset: Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: child,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: register ? 480 : 420),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 54,
+                        height: 54,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [LegacyStyle.accent, Color(0xff4f46e5)],
                           ),
-                          const SizedBox(height: 16),
-                          Text(
-                            register
-                                ? '© 2026 ChatApp'
-                                : '© 2026 Your Application',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Color(0xff6c757d),
+                          borderRadius: BorderRadius.circular(18),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x292563eb),
+                              blurRadius: 24,
+                              offset: Offset(0, 8),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
+                        child: const Icon(
+                          LegacyIcons.chat,
+                          color: Colors.white,
+                          size: 27,
+                        ),
                       ),
-                    ),
+                      const SizedBox(height: 14),
+                      const Text(
+                        'TMS CONNECT',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 2,
+                          color: LegacyStyle.accent,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.all(
+                          bounds.maxWidth < 360 ? 20 : 28,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: const Color(0xffe2eaf5)),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x0e173a65),
+                              blurRadius: 48,
+                              offset: Offset(0, 18),
+                            ),
+                          ],
+                        ),
+                        child: child,
+                      ),
+                      const SizedBox(height: 20),
+                      const Text(
+                        '© 2026 TMS Connect',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: LegacyStyle.muted,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
-          );
-        },
+          ),
+        ),
       ),
     ),
   );
@@ -523,7 +555,7 @@ class LegacyChatBackground extends StatelessWidget {
       gradient: LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: [Color(0xfff3f8ff), Color(0xffeaf2fb)],
+        colors: [Color(0xfff7faff), Color(0xffeef4fc)],
       ),
     ),
     child: CustomPaint(painter: _WallpaperPainter(), child: child),
@@ -547,7 +579,7 @@ class _WallpaperPainter extends CustomPainter {
         ).createShader(Rect.fromCircle(center: glowCenter, radius: glowRadius)),
     );
     final paint = Paint()
-      ..color = const Color(0x0c2563eb)
+      ..color = const Color(0x062563eb)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2
       ..strokeCap = StrokeCap.round
@@ -685,7 +717,7 @@ class LegacyWelcome extends StatelessWidget {
                             child: const Center(
                               child: Icon(
                                 LegacyIcons.local_shipping,
-                                size: 24,
+                                size: 48,
                                 color: LegacyStyle.accent,
                               ),
                             ),
