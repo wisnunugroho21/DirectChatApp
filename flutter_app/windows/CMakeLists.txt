@@ -55,7 +55,22 @@ add_subdirectory("runner")
 
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.
+# Firebase's bundled C++ SDK still declares CMake 3.1 compatibility. CMake 4
+# requires at least 3.5; set the floor for third-party subdirectories without
+# editing extracted SDK files or lowering a user-provided policy version.
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.0" AND
+   (NOT DEFINED CMAKE_POLICY_VERSION_MINIMUM OR
+    CMAKE_POLICY_VERSION_MINIMUM VERSION_LESS "3.5"))
+  set(CMAKE_POLICY_VERSION_MINIMUM "3.5")
+endif()
 include(flutter/generated_plugins.cmake)
+
+# The pinned audio plugin uses legacy C++/WinRT coroutine headers. Recent MSVC
+# versions require this opt-in until the plugin moves to C++20 coroutines.
+if(MSVC AND TARGET just_audio_windows_plugin)
+  target_compile_definitions(just_audio_windows_plugin PRIVATE
+    _SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
+endif()
 
 
 # === Installation ===
@@ -66,7 +81,8 @@ set(BUILD_BUNDLE_DIR "$<TARGET_FILE_DIR:${BINARY_NAME}>")
 # Make the "install" step default, as it's required to run.
 set(CMAKE_VS_INCLUDE_INSTALL_TO_DEFAULT_BUILD 1)
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-  set(CMAKE_INSTALL_PREFIX "${BUILD_BUNDLE_DIR}" CACHE PATH "..." FORCE)
+  set(CMAKE_INSTALL_PREFIX "${BUILD_BUNDLE_DIR}" CACHE PATH
+    "Flutter application bundle directory" FORCE)
 endif()
 
 set(INSTALL_BUNDLE_DATA_DIR "${CMAKE_INSTALL_PREFIX}/data")
