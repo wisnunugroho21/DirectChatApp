@@ -1902,60 +1902,210 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget callControls({bool dark = false}) {
-    final nativeSpeaker =
-        !kIsWeb &&
-        (defaultTargetPlatform == TargetPlatform.android ||
-            defaultTargetPlatform == TargetPlatform.iOS);
-    final background = dark ? const Color(0x33ffffff) : const Color(0xffdbeafe);
-    final foreground = dark ? Colors.white : LegacyStyle.text;
-    return Wrap(
-      alignment: WrapAlignment.center,
-      spacing: 13,
-      runSpacing: 12,
+  Widget callAction({
+    required IconData icon,
+    required String label,
+    required String tooltip,
+    required VoidCallback? onPressed,
+    Color background = const Color(0x26ffffff),
+    Color foreground = Colors.white,
+  }) => SizedBox(
+    width: 60,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         LegacyIconButton(
-          icon: call.muted ? LegacyIcons.mic_off : LegacyIcons.mic,
-          tooltip: call.muted ? 'Unmute microphone' : 'Mute microphone',
-          onPressed: call.mute,
-          size: 52,
-          radius: 26,
-          background: call.muted ? LegacyStyle.accent : background,
-          foreground: call.muted ? Colors.white : foreground,
-        ),
-        LegacyIconButton(
-          icon: call.video && call.camera
-              ? LegacyIcons.videocam
-              : LegacyIcons.videocam_off,
-          tooltip: 'Toggle camera',
-          onPressed: call.video ? call.toggleCamera : null,
+          icon: icon,
+          tooltip: tooltip,
+          onPressed: onPressed,
           size: 52,
           radius: 26,
           background: background,
           foreground: foreground,
         ),
-        LegacyIconButton(
+        const SizedBox(height: 9),
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Color(0xffdbeafe), fontSize: 11.5),
+        ),
+      ],
+    ),
+  );
+
+  Widget callControls() {
+    final nativeSpeaker =
+        !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS);
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 8,
+      runSpacing: 12,
+      children: [
+        callAction(
+          icon: call.muted ? LegacyIcons.mic_off : LegacyIcons.mic,
+          label: call.muted ? 'Unmute' : 'Mute',
+          tooltip: call.muted ? 'Unmute microphone' : 'Mute microphone',
+          onPressed: call.mute,
+          background: call.muted ? Colors.white : const Color(0x26ffffff),
+          foreground: call.muted ? LegacyStyle.text : Colors.white,
+        ),
+        callAction(
+          icon: call.video && call.camera
+              ? LegacyIcons.videocam
+              : LegacyIcons.videocam_off,
+          label: 'Camera',
+          tooltip: 'Toggle camera',
+          onPressed: call.video ? call.toggleCamera : null,
+        ),
+        callAction(
           icon: LegacyIcons.volume_up,
+          label: 'Speaker',
           tooltip: 'Speaker',
           onPressed: nativeSpeaker
               ? () => unawaited(run(call.toggleSpeaker))
               : null,
-          size: 52,
-          radius: 26,
-          background: call.speaker ? LegacyStyle.accent : background,
-          foreground: call.speaker ? Colors.white : foreground,
+          background: call.speaker ? Colors.white : const Color(0x26ffffff),
+          foreground: call.speaker ? LegacyStyle.text : Colors.white,
         ),
-        LegacyIconButton(
+        callAction(
           icon: LegacyIcons.call_end,
+          label: 'End',
           tooltip: 'End call',
           onPressed: () => unawaited(run(call.end)),
-          size: 52,
-          radius: 26,
-          background: const Color(0xffe53935),
+          background: LegacyStyle.danger,
         ),
       ],
     );
   }
+
+  String get callTypeLabel =>
+      '${call.group ? 'Group ' : ''}${call.video ? 'video' : 'voice'} call';
+
+  Widget callIdentity({bool compact = false}) => Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0x12ffffff),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: const Color(0x24ffffff)),
+        ),
+        child: Text(
+          call.incoming ? 'INCOMING CALL' : 'ONGOING CALL',
+          style: const TextStyle(
+            color: Color(0xffdbeafe),
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.2,
+          ),
+        ),
+      ),
+      if (!compact) ...[
+        const SizedBox(height: 32),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: const Color(0x0960a5fa),
+            border: Border.all(color: const Color(0x4093c5fd)),
+          ),
+          child: ProfileAvatar(
+            name: call.displayName,
+            colorKey: call.displayName,
+            group: call.group,
+            radius: 64,
+          ),
+        ),
+      ],
+      SizedBox(height: compact ? 12 : 24),
+      Text(
+        call.displayName,
+        textAlign: TextAlign.center,
+        maxLines: compact ? 2 : null,
+        overflow: compact ? TextOverflow.ellipsis : null,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: compact ? 24 : 32,
+          height: 1.15,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      const SizedBox(height: 10),
+      Text(
+        callTypeLabel[0].toUpperCase() + callTypeLabel.substring(1),
+        style: const TextStyle(color: Color(0xffbfdbfe), fontSize: 15),
+      ),
+      const SizedBox(height: 6),
+      Text(
+        call.incoming ? 'Waiting for you to answer' : call.status,
+        textAlign: TextAlign.center,
+        style: const TextStyle(color: Color(0xff93aeca), fontSize: 13),
+      ),
+    ],
+  );
+
+  Widget callScreen({Widget? participants}) => LayoutBuilder(
+    builder: (context, bounds) => SingleChildScrollView(
+      child: Container(
+        width: double.infinity,
+        constraints: BoxConstraints(minHeight: bounds.maxHeight),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            callIdentity(),
+            if (participants != null) ...[
+              const SizedBox(height: 24),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 560),
+                child: participants,
+              ),
+            ],
+            const SizedBox(height: 24),
+            const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(LegacyIcons.lock, size: 14, color: Color(0xffa7f3d0)),
+                SizedBox(width: 6),
+                Text(
+                  'Private and secure',
+                  style: TextStyle(color: Color(0xffa7f3d0), fontSize: 12),
+                ),
+              ],
+            ),
+            const SizedBox(height: 36),
+            if (call.incoming)
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 48,
+                runSpacing: 12,
+                children: [
+                  callAction(
+                    icon: LegacyIcons.call_end,
+                    label: 'Decline',
+                    tooltip: 'Decline call',
+                    onPressed: () => unawaited(run(call.end)),
+                    background: LegacyStyle.danger,
+                  ),
+                  callAction(
+                    icon: LegacyIcons.call,
+                    label: 'Accept',
+                    tooltip: 'Accept call',
+                    onPressed: () => unawaited(run(call.accept)),
+                    background: const Color(0xff16a34a),
+                  ),
+                ],
+              )
+            else
+              callControls(),
+          ],
+        ),
+      ),
+    ),
+  );
 
   Widget groupCallView() {
     final people =
@@ -2025,22 +2175,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         children: [
           Padding(
             padding: const EdgeInsets.all(24),
-            child: Column(
-              children: [
-                Text(
-                  call.displayName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 25,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  call.status,
-                  style: const TextStyle(color: Color(0xffbfd5ed)),
-                ),
-              ],
-            ),
+            child: callIdentity(compact: true),
           ),
           Expanded(
             child: GridView.builder(
@@ -2057,109 +2192,55 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 24),
-            child: callControls(dark: true),
+            child: callControls(),
           ),
         ],
       );
     }
-    return Center(
-      child: SingleChildScrollView(
-        child: Container(
-          width: compactCall ? double.infinity : 560,
-          constraints: BoxConstraints(
-            minHeight: compactCall
-                ? MediaQuery.sizeOf(context).height -
-                      MediaQuery.paddingOf(context).vertical
-                : 460,
-          ),
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(compactCall ? 0 : 22),
-            gradient: const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Colors.white, Color(0xffeaf2ff)],
-            ),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const SizedBox(height: 12),
-              ProfileAvatar(name: call.displayName, group: true, radius: 48),
-              const SizedBox(height: 18),
-              Text(
-                call.displayName,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 25,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              Text(
-                call.status,
-                style: const TextStyle(color: LegacyStyle.muted),
-              ),
-              const SizedBox(height: 20),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xffeff6ff),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xffdbe8f6)),
-                ),
-                child: Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 12,
-                  runSpacing: 12,
+    return callScreen(
+      participants: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0x0dffffff),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0x24ffffff)),
+        ),
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            for (final person in people)
+              SizedBox(
+                width: 74,
+                child: Column(
                   children: [
-                    for (final person in people)
+                    ProfileAvatar(name: person.name, radius: 27, profile: true),
+                    const SizedBox(height: 8),
+                    Text(
+                      person.name,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Color(0xffbfdbfe),
+                      ),
+                    ),
+                    // Keep remote audio renderers mounted on web.
+                    if (!person.local)
                       SizedBox(
-                        width: 74,
-                        child: Column(
-                          children: [
-                            ProfileAvatar(
-                              name: person.name,
-                              radius: 27,
-                              profile: true,
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              person.name,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: Color(0xff34516f),
-                              ),
-                            ),
-                            // On web the renderer element must be mounted for remote audio playback.
-                            if (!person.local)
-                              SizedBox(
-                                width: 1,
-                                height: 1,
-                                child: RTCVideoView(person.renderer),
-                              ),
-                          ],
-                        ),
+                        width: 1,
+                        height: 1,
+                        child: RTCVideoView(person.renderer),
                       ),
                   ],
                 ),
               ),
-              const SizedBox(height: 22),
-              const Text(
-                'Group voice call',
-                style: TextStyle(color: LegacyStyle.muted, fontSize: 12),
-              ),
-              const SizedBox(height: 22),
-              callControls(),
-            ],
-          ),
+          ],
         ),
       ),
     );
   }
-
-  bool get compactCall => MediaQuery.sizeOf(context).width <= 600;
 
   Widget callOverlay() => Positioned.fill(
     child: Semantics(
@@ -2168,164 +2249,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       namesRoute: true,
       label: call.incoming ? 'Incoming call' : 'Call',
       child: BlockSemantics(
-        child: ColoredBox(
-          color: call.incoming || call.video
-              ? const Color(0xff07182b)
-              : const Color(0x73000000),
+        child: DecoratedBox(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xff153a68), Color(0xff07182b)],
+            ),
+          ),
           child: SafeArea(
             child: call.incoming
-                ? LayoutBuilder(
-                    builder: (context, bounds) => SingleChildScrollView(
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minHeight: bounds.maxHeight,
-                        ),
-                        child: Container(
-                          decoration: const BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [Color(0xff153a68), Color(0xff07182b)],
-                            ),
-                          ),
-                          padding: const EdgeInsets.fromLTRB(24, 28, 24, 42),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 8,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0x12ffffff),
-                                  border: Border.all(
-                                    color: const Color(0x1fffffff),
-                                  ),
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: const Text(
-                                  'INCOMING CALL',
-                                  style: TextStyle(
-                                    color: Color(0xffdbeafe),
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: .52,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 64),
-                              Container(
-                                padding: const EdgeInsets.all(20),
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: const Color(0x7093c5fd),
-                                  ),
-                                ),
-                                child: ProfileAvatar(
-                                  name: call.displayName,
-                                  group: call.group,
-                                  radius:
-                                      (bounds.maxWidth * .28).clamp(116, 148) /
-                                      2,
-                                ),
-                              ),
-                              const SizedBox(height: 24),
-                              Text(
-                                call.displayName,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: (bounds.maxWidth * .07).clamp(
-                                    30,
-                                    44,
-                                  ),
-                                  fontWeight: FontWeight.w700,
-                                  height: 1.12,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                call.group
-                                    ? (call.video
-                                          ? 'Incoming group video call'
-                                          : 'Incoming group voice call')
-                                    : (call.video
-                                          ? 'Video call'
-                                          : 'Voice call'),
-                                style: const TextStyle(
-                                  color: Color(0xffbfdbfe),
-                                  fontSize: 17,
-                                ),
-                              ),
-                              const SizedBox(height: 18),
-                              const Text(
-                                'Private and secure',
-                                style: TextStyle(
-                                  color: Color(0xffa7f3d0),
-                                  fontSize: 12,
-                                ),
-                              ),
-                              const SizedBox(height: 62),
-                              SizedBox(
-                                width: 320,
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    for (final accept in [false, true])
-                                      Expanded(
-                                        child: Column(
-                                          children: [
-                                            LegacyIconButton(
-                                              icon: accept
-                                                  ? LegacyIcons.call
-                                                  : LegacyIcons.call_end,
-                                              tooltip: accept
-                                                  ? 'Accept call'
-                                                  : 'Decline call',
-                                              onPressed: () => unawaited(
-                                                run(
-                                                  accept
-                                                      ? call.accept
-                                                      : call.end,
-                                                ),
-                                              ),
-                                              size: 76,
-                                              radius: 38,
-                                              background: accept
-                                                  ? const Color(0xff16a34a)
-                                                  : LegacyStyle.danger,
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Text(
-                                              accept ? 'Accept' : 'Decline',
-                                              style: const TextStyle(
-                                                color: Color(0xffeaf2ff),
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 30),
-                              const Text(
-                                'Choose an action to continue',
-                                style: TextStyle(
-                                  color: Color(0xff93aeca),
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  )
+                ? callScreen()
                 : call.group
                 ? groupCallView()
                 : call.video
@@ -2342,22 +2276,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         top: 24,
                         left: 24,
                         right: 24,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              call.displayName,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 25,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            Text(
-                              call.status,
-                              style: const TextStyle(color: Color(0xffbfd5ed)),
-                            ),
-                          ],
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0x9907182b),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: callIdentity(compact: true),
                         ),
                       ),
                       Positioned(
@@ -2391,96 +2316,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         bottom: 24,
                         left: 16,
                         right: 16,
-                        child: callControls(dark: true),
+                        child: callControls(),
                       ),
                     ],
                   )
-                : Center(
-                    child: SingleChildScrollView(
-                      padding: EdgeInsets.all(compactCall ? 0 : 16),
-                      child: Container(
-                        width: compactCall ? double.infinity : 420,
-                        constraints: BoxConstraints(
-                          minHeight: compactCall
-                              ? MediaQuery.sizeOf(context).height -
-                                    MediaQuery.paddingOf(context).vertical -
-                                    MediaQuery.viewInsetsOf(context).bottom
-                              : 460,
-                        ),
-                        padding: const EdgeInsets.fromLTRB(24, 42, 24, 28),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [Colors.white, Color(0xffeaf2ff)],
-                          ),
-                          border: compactCall
-                              ? null
-                              : Border.all(color: LegacyStyle.border),
-                          borderRadius: BorderRadius.circular(
-                            compactCall ? 0 : 22,
-                          ),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x401e3a5f),
-                              blurRadius: 60,
-                              offset: Offset(0, 20),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          mainAxisAlignment: compactCall
-                              ? MainAxisAlignment.center
-                              : MainAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: 35),
-                            ProfileAvatar(name: call.displayName, radius: 48),
-                            const SizedBox(height: 18),
-                            Text(
-                              call.displayName,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontSize: 25,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              call.status,
-                              style: const TextStyle(color: LegacyStyle.muted),
-                            ),
-                            const SizedBox(height: 12),
-                            const Text(
-                              'Voice call',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: LegacyStyle.accent,
-                              ),
-                            ),
-                            const SizedBox(height: 26),
-                            const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(LegacyIcons.lock, size: 15),
-                                SizedBox(width: 5),
-                                Text(
-                                  'End-to-end encrypted',
-                                  style: TextStyle(
-                                    color: LegacyStyle.muted,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 22),
-                            callControls(),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
+                : callScreen(),
           ),
         ),
       ),
