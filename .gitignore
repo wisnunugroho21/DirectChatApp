@@ -10,4 +10,4 @@ backend/appsettings.Local.json
 **/local.properties
 **/*.jks
 **/key.properties
-
+flutter_app/web/firebase-config.js

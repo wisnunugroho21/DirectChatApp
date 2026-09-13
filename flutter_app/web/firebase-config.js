@@ -1,1 +1,0 @@
-self.FIREBASE_CONFIG = {"appId":"1:23738799240:web:613641fe694088dd9bfb3d","apiKey":"AIzaSyDD4B9YJMCuxlKyQUDnwH_kQrNsRqQRT20","projectId":"tms-grahatrans","authDomain":"tms-grahatrans.firebaseapp.com","messagingSenderId":"23738799240","storageBucket":"tms-grahatrans.firebasestorage.app"};
